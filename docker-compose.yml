@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:8
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    # network_mode: host
+    volumes:
+      - mongo_data:/data/db
+
+  # yukkimusic:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: yukkimusic
+  #   env_file:
+  #     - .env
+  #   restart: unless-stopped
+  #   network_mode: host
+  #   depends_on:
+  #     - mongodb
+
+volumes:
+  mongo_data:

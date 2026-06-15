@@ -1,0 +1,154 @@
+/*
+ * ● YukkiMusic
+ * ○ A high-performance engine for streaming music in Telegram voicechats.
+ *
+ * Copyright (C) 2026 TheTeamVivek
+ *
+ * This program is free software: you can redistribute it and/or modify it under the
+ * terms of the GNU General Public License as published by the Free Software Foundation,
+ * either version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ * Repository: https://github.com/TheTeamVivek/YukkiMusic
+ */
+
+package utils
+
+import (
+	"slices"
+	"time"
+
+	"github.com/amarnathcjd/gogram/telegram"
+)
+
+var (
+	adminCache = NewCache[int64, []int64](30 * time.Minute)
+	ownerCache = NewCache[int64, int64](30 * time.Minute)
+)
+
+// Checks if a user is an admin in a chat
+func IsChatAdmin(c *telegram.Client, chatID, userID int64) (bool, error) {
+	if chatID == userID { // chat anon admin or pvt chat
+		return true, nil
+	}
+
+	ids, ok := adminCache.Get(chatID)
+	if ok {
+		return slices.Contains(ids, userID), nil
+	}
+
+	ids, err := RefreshChatAdmin(c, chatID)
+	if err != nil {
+		return false, err
+	}
+
+	return slices.Contains(ids, userID), nil
+}
+
+// Reloads the chat admins from Telegram and updates the cache
+func RefreshChatAdmin(c *telegram.Client, chatID int64) ([]int64, error) {
+	ids, _, err := fetchAdmins(c, chatID)
+	if err != nil {
+		return nil, err
+	}
+
+	return ids, nil
+}
+
+func GetChatOwner(c *telegram.Client, chatID int64) (int64, error) {
+	if ownerID, ok := ownerCache.Get(chatID); ok && ownerID != 0 {
+		return ownerID, nil
+	}
+
+	_, ownerID, err := fetchAdmins(c, chatID)
+	if err != nil {
+		return 0, err
+	}
+	return ownerID, nil
+}
+
+// Adds a user to the cached admin list, auto-reloading if cache is missing
+func AddChatAdmin(c *telegram.Client, chatID, userID int64) error {
+	ids, ok := adminCache.Get(chatID)
+	if !ok || len(ids) == 0 {
+		var err error
+		ids, err = RefreshChatAdmin(c, chatID)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !slices.Contains(ids, userID) {
+		ids = append(ids, userID)
+		adminCache.Set(chatID, ids)
+	}
+
+	return nil
+}
+
+// Removes a user from the cached admin list, auto-reloading if cache is missing
+func RemoveChatAdmin(c *telegram.Client, chatID, userID int64) error {
+	ids, ok := adminCache.Get(chatID)
+	if !ok || len(ids) == 0 {
+		var err error
+		ids, err = RefreshChatAdmin(c, chatID)
+		if err != nil {
+			return err
+		}
+	}
+
+	newIDs := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id != userID {
+			newIDs = append(newIDs, id)
+		}
+	}
+
+	if len(newIDs) == 0 {
+		adminCache.Delete(chatID)
+	} else {
+		adminCache.Set(chatID, newIDs)
+	}
+
+	return nil
+}
+
+// Fetches admins from Telegram
+func fetchAdmins(c *telegram.Client, chatID int64) ([]int64, int64, error) {
+	admins, _, err := c.GetChatMembers(chatID, &telegram.ParticipantOptions{
+		Filter:           &telegram.ChannelParticipantsAdmins{},
+		SleepThresholdMs: 3000,
+		Limit:            -1,
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	ids := make([]int64, 0, len(admins))
+	var ownerID int64
+	for _, p := range admins {
+		if p.User.Bot || p.User.Deleted {
+			continue
+		}
+		ids = append(ids, p.User.ID)
+		if p.Status == telegram.Creator {
+			ownerID = p.User.ID
+		}
+	}
+
+	if len(ids) == 0 {
+		adminCache.Delete(chatID)
+	} else {
+		adminCache.Set(chatID, ids)
+	}
+	if ownerID != 0 {
+		ownerCache.Set(chatID, ownerID)
+	} else {
+		ownerCache.Delete(chatID)
+	}
+
+	return ids, ownerID, nil
+}
