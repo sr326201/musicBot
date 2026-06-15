@@ -131,15 +131,15 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) tg.ReplyMarkup {
 		)
 	}
 	btn.AddRow(
-		tg.Button.Data("▷", prefix+"resume"),
-		tg.Button.Data("II", prefix+"pause"),
-		tg.Button.Data("‣‣I", prefix+"skip"),
-		tg.Button.Data("▢", prefix+"stop"),
+		tg.Button.Data("▶️", prefix+"resume"),
+		tg.Button.Data("⏸️", prefix+"pause"),
+		tg.Button.Data("⏩", prefix+"skip"),
+		tg.Button.Data("⏹️", prefix+"stop"),
 	)
 
 	btn.AddRow(
 		tg.Button.Data("↩ 15s", prefix+"seekback_15"),
-		tg.Button.Data("⟳", prefix+"replay"),
+		tg.Button.Data("🔁", prefix+"replay"),
 		tg.Button.Data("15s ↪", prefix+"seek_15"),
 	)
 
