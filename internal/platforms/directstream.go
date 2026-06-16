@@ -78,7 +78,7 @@ type streamInfo struct {
 
 func init() {
 	// Lowest priority - acts as fallback
-	Register(65, &DirectStreamPlatform{
+	Register(10, &DirectStreamPlatform{
 		name: PlatformDirectStream,
 	})
 }
