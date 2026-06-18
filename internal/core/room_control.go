@@ -32,8 +32,6 @@ import (
 const (
 	minSpeed         = 0.50
 	maxSpeed         = 4.0
-	minVolume        = 0.0
-	maxVolume        = 2.0
 	seekEndThreshold = 10
 	seekSafetyMargin = 5
 )
@@ -471,75 +469,20 @@ func (r *RoomState) Unmute() (bool, error) {
 }
 
 func (r *RoomState) play() error {
-	desc := getMediaDescription(r.filePath, r.position, r.speed, r.volume, r.track.Video)
+	desc := getMediaDescription(r.filePath, r.position, r.speed, r.track.Video)
 	return r.Assistant.Ntg.Play(r.ID, desc)
-}
-
-func (r *RoomState) SetVolume(volume float64) error {
-	if r.IsDestroyed() {
-		return ErrRoomDestroyed
-	}
-
-	r.mu.RLock()
-	hasTrack := r.track != nil && r.filePath != ""
-	currentVolume := r.volume
-	wasPaused := r.paused
-	wasMuted := r.muted
-	r.mu.RUnlock()
-
-	if !hasTrack {
-		return fmt.Errorf("no track to adjust volume")
-	}
-
-	if volume < minVolume || volume > maxVolume {
-		return fmt.Errorf(
-			"invalid volume: must be between %.0f%% and %.0f%%",
-			minVolume*100,
-			maxVolume*100,
-		)
-	}
-
-	if currentVolume == volume {
-		return nil
-	}
-
-	r.mu.Lock()
-	r.updatePosition()
-	r.volume = volume
-	r.updatedAt = time.Now().Unix()
-	r.mu.Unlock()
-
-	if wasPaused {
-		return nil
-	}
-
-	if err := r.play(); err != nil {
-		return err
-	}
-
-	if wasMuted {
-		_, _ = r.Assistant.Ntg.Mute(r.ID)
-	}
-
-	return nil
 }
 
 func getMediaDescription(
 	url string,
 	pos int,
 	speed float64,
-	volume float64,
 	isVideo bool,
 ) ntgcalls.MediaDescription {
 	if speed < 0.5 {
 		speed = 0.5
 	} else if speed > 4.0 {
 		speed = 4.0
-	}
-	if volume < minVolume {
-		volume = minVolume
-	} else if volume > maxVolume {
-		volume = maxVolume
 	}
 
 	baseCmd := "ffmpeg "
@@ -551,7 +494,7 @@ func getMediaDescription(
 	}
 	baseCmd += "-v warning -i \"" + url + "\" "
 
-	audio := getAudioPipeline(baseCmd, speed, volume)
+	audio := getAudioPipeline(baseCmd, speed)
 	if !isVideo {
 		return ntgcalls.MediaDescription{
 			Microphone: audio,
@@ -568,7 +511,6 @@ func getMediaDescription(
 func getAudioPipeline(
 	baseCmd string,
 	speed float64,
-	volume float64,
 ) *ntgcalls.AudioDescription {
 	audio := &ntgcalls.AudioDescription{
 		MediaSource:  ntgcalls.MediaSourceShell,
@@ -577,16 +519,12 @@ func getAudioPipeline(
 	}
 
 	audioCmd := baseCmd
-	audioFilters := []string{
-		"atempo=" + strconv.FormatFloat(speed, "f", 2, 64),
-	}
-	if volume != 1.0 {
-		audioFilters = append(
-			audioFilters,
-			"volume=" + strconv.FormatFloat(volume, "f", 2, 64),
-		)
-	}
-	audioCmd += "-filter:a \"" + strings.Join(audioFilters, ",") + "\" "
+	audioCmd += "-filter:a \"atempo=" + strconv.FormatFloat(
+		speed,
+		'f',
+		2,
+		64,
+	) + "\" "
 	audioCmd += "-f s16le -ac " + strconv.Itoa(int(audio.ChannelCount)) + " "
 	audioCmd += "-ar " + strconv.Itoa(int(audio.SampleRate)) + " "
 	audioCmd += "pipe:1"
