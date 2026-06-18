@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Laky-64/gologging"
@@ -469,14 +470,55 @@ func (r *RoomState) Unmute() (bool, error) {
 }
 
 func (r *RoomState) play() error {
-	desc := getMediaDescription(r.filePath, r.position, r.speed, r.track.Video)
+	r.mu.RLock()
+	volume := r.volume
+	r.mu.RUnlock()
+	desc := getMediaDescription(r.filePath, r.position, r.speed, volume, r.track.Video)
 	return r.Assistant.Ntg.Play(r.ID, desc)
 }
 
+// SetVolume adjusts playback volume. It does not affect pause/mute state.
+func (r *RoomState) SetVolume(volume float64) error {
+	if r.IsDestroyed() {
+		return ErrRoomDestroyed
+	}
+
+	r.mu.RLock()
+	hasTrack := r.track != nil && r.filePath != ""
+	wasPaused := r.paused
+	r.mu.RUnlock()
+
+	if !hasTrack {
+		return fmt.Errorf("no track to adjust volume")
+	}
+
+	if volume < 0.0 || volume > 1.0 {
+		return fmt.Errorf("invalid volume: must be between 0.0 and 1.0")
+	}
+
+	r.mu.Lock()
+	r.volume = volume
+	r.updatedAt = time.Now().Unix()
+	r.mu.Unlock()
+
+	if wasPaused {
+		return nil
+	}
+
+	err := r.play()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// getMediaDescription builds ffmpeg pipeline with optional speed and volume filters.
 func getMediaDescription(
 	url string,
 	pos int,
 	speed float64,
+	volume float64,
 	isVideo bool,
 ) ntgcalls.MediaDescription {
 	if speed < 0.5 {
@@ -494,7 +536,7 @@ func getMediaDescription(
 	}
 	baseCmd += "-v warning -i \"" + url + "\" "
 
-	audio := getAudioPipeline(baseCmd, speed)
+	audio := getAudioPipeline(baseCmd, speed, volume)
 	if !isVideo {
 		return ntgcalls.MediaDescription{
 			Microphone: audio,
@@ -511,6 +553,7 @@ func getMediaDescription(
 func getAudioPipeline(
 	baseCmd string,
 	speed float64,
+	volume float64,
 ) *ntgcalls.AudioDescription {
 	audio := &ntgcalls.AudioDescription{
 		MediaSource:  ntgcalls.MediaSourceShell,
@@ -519,12 +562,18 @@ func getAudioPipeline(
 	}
 
 	audioCmd := baseCmd
-	audioCmd += "-filter:a \"atempo=" + strconv.FormatFloat(
-		speed,
-		'f',
-		2,
-		64,
-	) + "\" "
+	filters := []string{}
+
+	if volume > 0 && volume != 1.0 {
+		filters = append(filters, "volume="+strconv.FormatFloat(volume, 'f', 2, 64))
+	}
+	if speed != 1.0 {
+		filters = append(filters, "atempo="+strconv.FormatFloat(speed, 'f', 2, 64))
+	}
+
+	if len(filters) > 0 {
+		audioCmd += "-filter:a \"" + strings.Join(filters, ",") + "\" "
+	}
 	audioCmd += "-f s16le -ac " + strconv.Itoa(int(audio.ChannelCount)) + " "
 	audioCmd += "-ar " + strconv.Itoa(int(audio.SampleRate)) + " "
 	audioCmd += "pipe:1"

@@ -294,6 +294,16 @@ var handlers = []MsgHandlerDef{
 		Filters: []telegram.Filter{superGroupFilter, authFilter},
 	},
 	{
+		Pattern: "(volume|setvolume|vol)",
+		Handler: volumeHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "cvolume",
+		Handler: cvolumeHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
 		Pattern: "seek",
 		Handler: seekHandler,
 		Filters: []telegram.Filter{superGroupFilter, authFilter},
@@ -520,10 +530,10 @@ var plainCommandAliases = map[string]string{
 	"پینگ":      "ping",
 	"راهنما":    "help",
 	"تنظیمات":   "settings",
-	"توقف":      "stop",
+	"اتمام":     "stop",
 	"مکث":       "pause",
 	"ادامه":     "resume",
-	"ردکردن":    "skip",
+	"بعدی":      "skip",
 	"لیست":      "queue",
 }
 
@@ -533,10 +543,10 @@ var plainCommandAliasKeys = []string{
 	"راهنما",
 	"تنظیمات",
 	"پخش",
-	"توقف",
+	"اتمام",
 	"مکث",
 	"ادامه",
-	"ردکردن",
+	"بعدی",
 	"لیست",
 }
 
@@ -660,7 +670,7 @@ func Init(bot *telegram.Client, assistants *core.AssistantManager) {
 	cplayCommands := []string{
 		"/cfplay", "/vcplay", "/fvcplay",
 		"/cpause", "/cresume", "/cskip", "/cstop",
-		"/cmute", "/cunmute", "/cseek", "/cseekback",
+		"/cmute", "/cunmute", "/cvolume", "/cseek", "/cseekback",
 		"/cjump", "/cremove", "/cclear", "/cmove",
 		"/cspeed", "/creplay", "/cposition", "/cshuffle",
 		"/cloop", "/cqueue", "/creload",

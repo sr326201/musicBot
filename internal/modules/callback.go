@@ -130,6 +130,10 @@ func roomHandle(cb *tg.CallbackQuery) error {
 		return handleMuteAction(cb, r)
 	case action == "unmute":
 		return handleUnmuteAction(cb, r)
+	case action == "volume_status":
+		return handleVolumeStatusAction(cb, r, opt)
+	case strings.HasPrefix(action, "volume_"):
+		return handleVolumeChangeAction(cb, r, action, opt)
 	default:
 		gologging.WarnF("Unknown callback action: %s", action)
 		cb.Answer(F(chatID, "unknown_action"), opt)
@@ -559,4 +563,79 @@ func updatePlaybackMessage(cb *tg.CallbackQuery, r *core.RoomState, state string
 	}); err != nil {
 		gologging.ErrorF("Edit error: %v", err)
 	}
+}
+
+func handleVolumeStatusAction(
+	cb *tg.CallbackQuery,
+	r *core.RoomState,
+	opt *tg.CallbackOptions,
+) error {
+	chatID := cb.ChannelID()
+	t := r.Track()
+
+	cb.Answer(F(chatID, "volume_current", locales.Arg{
+		"volume": fmt.Sprintf("%.0f%%", r.Volume()*100),
+		"title":  utils.EscapeHTML(utils.ShortTitle(t.Title, 25)),
+		"cmd":    "volume",
+	}), opt)
+
+	return tg.ErrEndGroup
+}
+
+func handleVolumeChangeAction(
+	cb *tg.CallbackQuery,
+	r *core.RoomState,
+	action string,
+	opt *tg.CallbackOptions,
+) error {
+	chatID := cb.ChannelID()
+
+	parts := strings.SplitN(action, "_", 3)
+	if len(parts) < 3 || parts[0] != "volume" {
+		cb.Answer(F(chatID, "invalid_request"), opt)
+		return tg.ErrEndGroup
+	}
+
+	delta, err := strconv.ParseFloat(parts[2], 64)
+	if err != nil {
+		cb.Answer(F(chatID, "invalid_request"), opt)
+		return tg.ErrEndGroup
+	}
+
+	if parts[1] == "down" {
+		delta = -delta
+	}
+
+	currentVolume := r.Volume()
+	newVolume := currentVolume + delta
+
+	if newVolume < 0.0 {
+		newVolume = 0.0
+	} else if newVolume > 1.0 {
+		newVolume = 1.0
+	}
+
+	if newVolume == currentVolume {
+		cb.Answer(F(chatID, "volume_already_set", locales.Arg{
+			"volume": fmt.Sprintf("%.0f%%", newVolume*100),
+			"title":  utils.EscapeHTML(utils.ShortTitle(r.Track().Title, 25)),
+		}), opt)
+		return tg.ErrEndGroup
+	}
+
+	if err := r.SetVolume(newVolume); err != nil {
+		cb.Answer(F(chatID, "volume_failed", locales.Arg{
+			"volume": fmt.Sprintf("%.0f%%", newVolume*100),
+			"error":  err.Error(),
+		}), opt)
+		return tg.ErrEndGroup
+	}
+
+	cb.Answer(F(chatID, "volume_set", locales.Arg{
+		"volume": fmt.Sprintf("%.0f%%", newVolume*100),
+		"user":   utils.MentionHTML(cb.Sender),
+	}), opt)
+
+	updatePlaybackMessage(cb, r, "playing")
+	return tg.ErrEndGroup
 }

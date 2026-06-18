@@ -172,6 +172,12 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) tg.ReplyMarkup {
 	)
 
 	btn.AddRow(
+		tg.Button.Data("🔉 -20%", prefix+"volume_down_0.2"),
+		tg.Button.Data(fmt.Sprintf("🔊 %.0f%%", r.Volume()*100), prefix+"volume_status"),
+		tg.Button.Data("🔊 +20%", prefix+"volume_up_0.2"),
+	)
+
+	btn.AddRow(
 		tg.Button.Data("↩ 15s", prefix+"seekback_15"),
 		tg.Button.Data("🔁", prefix+"replay"),
 		tg.Button.Data("15s ↪", prefix+"seek_15"),

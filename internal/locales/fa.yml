@@ -821,12 +821,33 @@ speed_failed: |
 
 speed_reset_success: "✅ پخش speed reset to <b>1.0x</b> by {user}"
 
-speed_set: "🚀 پخش speed set to <b>{speed}x</b> by {user}."
+speed_set: "🚀 سرعت پخش روی <b>{speed}x</b> تنظیم شد توسط {user}."
 speed_set_with_reset: |
-  🚀 پخش speed set to <b>{speed}x</b> by {user}.
-  ⏳ Will reset to normal after <b>{duration}</b> seconds.
+  🚀 سرعت پخش روی <b>{speed}x</b> تنظیم شد توسط {user}.
+  ⏳ خودبه‌خوداً پس از <b>{duration}</b> ثانیه بازنشانی می‌شود.
 
-spt_fetch_fail: "⚠️ Failed to fetch network info: <code>{error}</code>"
+# 🔊 Volume messages
+volume_current: "🔊 <b>صدای فعلی:</b> <code>{volume}</code> برای 🎵 <u>{title}</u>\n\n💡 از <code>{cmd} 100</code> برای بازگرداندن صدا استفاده کن."
+volume_already_set: "ℹ️ صدا از قبل روی <b>{volume}</b> برای 🎵 <b>{title}</b> تنظیم شده"
+volume_invalid: "❌ مقدار صدا نامعتبر است.\nمثال: <code>{cmd} 50</code> یا <code>{cmd} 75</code>"
+volume_failed: |
+  ❌ تغییر صدا به <b>{volume}</b> ناموفق بود.
+  خطا: <code>{error}</code>
+volume_set: "🔊 صدا توسط {user} روی <b>{volume}</b> تنظیم شد."
+
+volume_usage: |
+  💡 <b>نحوه استفاده:</b>
+  <code>{cmd} [مقدار]</code> — تنظیم صدا (۰ تا ۱۰۰)
+
+  <b>مثال‌ها:</b>
+  <code>{cmd} 100</code> — صدای اصلی
+  <code>{cmd} 50</code> — صدای نصفه
+  <code>{cmd} 0</code> — بی‌صدا
+  <code>{cmd} reset</code> — بازگرداندن به ۱۰۰٪
+
+cb_volume_success: "🔊 صدا روی {volume} تنظیم شد"
+
+spt_fetch_fail: "⚠️ دریافت اطلاعات شبکه ناموفق بود: <code>{error}</code>"
 spt_servers_fetch_fail: "⚠️ Failed to fetch servers: <code>{error}</code>"
 spt_best_server_fail: "⚠️ Failed to find best server: <code>{error}</code>"
 
@@ -961,6 +982,7 @@ help_admin: |
   <b>/replay</b> - پخش دوباره آهنگ فعلی
   <b>/mute</b> - بی‌صدا کردن پخش
   <b>/unmute</b> - برگرداندن صدا
+  <b>/volume</b> - تنظیم صدای پخش (۰ تا ۱۰۰٪)
   <b>/seek</b> - جلو بردن پخش چند ثانیه
   <b>/seekback</b> - عقب بردن پخش چند ثانیه
   <b>/jump</b> - پریدن به یک زمان مشخص در آهنگ

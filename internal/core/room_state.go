@@ -57,7 +57,7 @@ type RoomState struct {
 	muted bool
 	// speed is the active playback speed multiplier.
 	speed float64
-	// volume is the active media volume multiplier. 1.0 means 100%.
+	// volume is the playback volume multiplier (0.0 to 1.0).
 	volume float64
 	// position is the current playback position in seconds.
 	position int
@@ -311,7 +311,7 @@ func (r *RoomState) Speed() float64 {
 
 func (r *RoomState) Volume() float64 {
 	if r.IsDestroyed() {
-		return 1.0
+		return 0
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()

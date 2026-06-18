@@ -98,13 +98,17 @@ var AllCommands = BotCommands{
 		cmd("end", "Stop the song and leave voice chat."),
 		cmd("cstop", "Stop the song and leave the linked channel's voice chat."),
 
-		// Mute / Unmute
-		cmd("mute", "Mute the bot in the voice chat."),
-		cmd("unmute", "Unmute the bot in the voice chat."),
-		cmd("cmute", "Mute the bot in the linked channel's voice chat."),
-		cmd("cunmute", "Unmute the bot in the linked channel's voice chat."),
+// Mute / Unmute
+	cmd("mute", "Mute the bot in the voice chat."),
+	cmd("unmute", "Unmute the bot in the voice chat."),
+	cmd("cmute", "Mute the bot in the linked channel's voice chat."),
+	cmd("cunmute", "Unmute the bot in the linked channel's voice chat."),
 
-		// Seek
+	// Volume
+	cmd("volume", "Set playback volume (0-100%)."),
+	cmd("cvolume", "Set playback volume in linked channel."),
+
+	// Seek
 		cmd("seek", "Seek to a specific position in the song."),
 		cmd("seekback", "Seek back in the song."),
 		cmd("cseek", "Seek to a position in the linked channel's song."),
