@@ -58,6 +58,11 @@
             "value": "24",
             "required": false
         },
+        "PLAYBACK_CONTROL_COOLDOWN": {
+            "description": "Cooldown in seconds between playback control button clicks per user per chat. Set 0 to disable.",
+            "value": "0",
+            "required": false
+        },
         "DISABLE_COLOUR": {
             "description": "Disable coloured inline button styles in Telegram when set to true.",
             "value": "false",

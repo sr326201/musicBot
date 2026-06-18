@@ -130,11 +130,45 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) tg.ReplyMarkup {
 			tg.Button.Data(progress, "progress"),
 		)
 	}
+
+	currentSpeed := r.Speed()
+
+	speedDown := currentSpeed - 0.25
+	if speedDown < 0.50 {
+		speedDown = 0.50
+	}
+
+	speedUp := currentSpeed + 0.25
+	if speedUp > 4.0 {
+		speedUp = 4.0
+	}
+
+	toggleLabel, toggleAction := "⏸️", "pause"
+
+	if r.IsPaused() {
+		toggleLabel, toggleAction = "▶️", "resume"
+	}
+
+	muteLabel, muteAction := "🔇", "mute"
+
+	if r.IsMuted() {
+		muteLabel, muteAction = "🔊", "unmute"
+	}
+
 	btn.AddRow(
-		tg.Button.Data("▶️", prefix+"resume"),
-		tg.Button.Data("⏸️", prefix+"pause"),
-		tg.Button.Data("⏩", prefix+"skip"),
 		tg.Button.Data("⏹️", prefix+"stop"),
+		tg.Button.Data(toggleLabel, prefix+toggleAction),
+		tg.Button.Data("⏩", prefix+"skip"),
+	)
+
+	btn.AddRow(
+		tg.Button.Data(fmt.Sprintf("⏪ %.2fx", speedDown), prefix+"speed_down"),
+		tg.Button.Data(fmt.Sprintf("%.2fx", currentSpeed), prefix+"speed_status"),
+		tg.Button.Data(fmt.Sprintf("%.2fx ⏩", speedUp), prefix+"speed_up"),
+	)
+
+	btn.AddRow(
+		tg.Button.Data(muteLabel, prefix+muteAction),
 	)
 
 	btn.AddRow(

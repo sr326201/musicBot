@@ -514,6 +514,81 @@ var handlers = []MsgHandlerDef{
 	},
 }
 
+var plainCommandAliases = map[string]string{
+	"پخش ویدیو": "vplay",
+	"پخش":       "play",
+	"پینگ":      "ping",
+	"راهنما":    "help",
+	"تنظیمات":   "settings",
+	"توقف":      "stop",
+	"مکث":       "pause",
+	"ادامه":     "resume",
+	"ردکردن":    "skip",
+	"لیست":      "queue",
+}
+
+var plainCommandAliasKeys = []string{
+	"پخش ویدیو",
+	"پینگ",
+	"راهنما",
+	"تنظیمات",
+	"پخش",
+	"توقف",
+	"مکث",
+	"ادامه",
+	"ردکردن",
+	"لیست",
+}
+
+func plainTextCommandHandler(m *telegram.NewMessage) error {
+	if m.IsService() || m.Message == nil || m.Message.Out {
+		return nil
+	}
+
+	text := strings.TrimSpace(m.Text())
+	if text == "" || strings.HasPrefix(text, "/") {
+		return nil
+	}
+
+	for _, phrase := range plainCommandAliasKeys {
+		canonical, ok := plainCommandAliases[phrase]
+		if !ok {
+			continue
+		}
+
+		if text == phrase || strings.HasPrefix(text, phrase+" ") {
+			rest := strings.TrimSpace(strings.TrimPrefix(text, phrase))
+			if rest == "" {
+				m.SetText("/" + canonical)
+			} else {
+				m.SetText("/" + canonical + " " + rest)
+			}
+			return nil
+		}
+	}
+
+	fields := strings.Fields(text)
+	if len(fields) == 0 {
+		return nil
+	}
+
+	first := fields[0]
+
+	for _, h := range handlers {
+		re, err := regexp.Compile("(?i)^" + h.Pattern + "$")
+		if err != nil {
+			continue
+		}
+
+		if re.MatchString(first) {
+			m.SetText("/" + text)
+			return nil
+		}
+	}
+
+	return nil
+}
+
 var cbHandlers = []CbHandlerDef{
 	{Pattern: "start", Handler: startCB},
 	{Pattern: "help_cb", Handler: helpCB},
@@ -534,7 +609,12 @@ var cbHandlers = []CbHandlerDef{
 func Init(bot *telegram.Client, assistants *core.AssistantManager) {
 	bot.UpdatesGetState()
 	bot.Use(blacklistMessageMiddleware)
-	bot.Use(plainTextCommandMiddleware)
+	bot.AddMessageHandler(
+		"^(?i).+$",
+		plainTextCommandHandler,
+		telegram.IsText,
+	).SetGroup(99)
+	// bot.Use(plainTextCommandMiddleware)
 	assistants.ForEach(func(a *core.Assistant) {
 		a.Client.UpdatesGetState()
 	})

@@ -27,6 +27,7 @@ import (
 	"github.com/Laky-64/gologging"
 	tg "github.com/amarnathcjd/gogram/telegram"
 
+	"main/internal/config"
 	"main/internal/core"
 	"main/internal/database"
 	"main/internal/locales"
@@ -36,7 +37,7 @@ import (
 
 func cancelHandler(cb *tg.CallbackQuery) error {
 	chatID := cb.ChannelID()
-	opt := &tg.CallbackOptions{Alert: true}
+	opt := &tg.CallbackOptions{Alert: false}
 
 	if !checkAdminOrAuth(cb, chatID) {
 		return tg.ErrEndGroup
@@ -64,7 +65,7 @@ func emptyCBHandler(cb *tg.CallbackQuery) error {
 }
 
 func roomHandle(cb *tg.CallbackQuery) error {
-	opt := &tg.CallbackOptions{Alert: true}
+	opt := &tg.CallbackOptions{Alert: false}
 	chatID := cb.ChannelID()
 
 	parts := strings.SplitN(cb.DataString(), ":", 3)
@@ -101,9 +102,18 @@ func roomHandle(cb *tg.CallbackQuery) error {
 		}), opt)
 		return tg.ErrEndGroup
 	}
-	utils.SetFlood(key, 5*time.Second)
+	utils.SetFlood(
+		key,
+		time.Duration(config.PlaybackControlCooldown)*time.Second,
+	)
 
 	switch {
+	case action == "speed_down":
+		return handleSpeedStepAction(cb, r, -0.25, opt)
+	case action == "speed_up":
+		return handleSpeedStepAction(cb, r, 0.25, opt)
+	case action == "speed_status":
+		return handleSpeedStatusAction(cb, r, opt)
 	case strings.HasPrefix(action, "seek"):
 		return handleSeekAction(cb, r, action, opt)
 	case action == "pause":
@@ -133,7 +143,7 @@ func checkAdminOrAuth(cb *tg.CallbackQuery, chatID int64) bool {
 		return true
 	}
 
-	opt := &tg.CallbackOptions{Alert: true}
+	opt := &tg.CallbackOptions{Alert: false}
 	mode, err := database.GetAdminMode(chatID)
 	if err == nil && mode == database.AdminModeAdminsOnly {
 		cb.Answer(F(chatID, "only_admin_cb"), opt)
@@ -144,7 +154,7 @@ func checkAdminOrAuth(cb *tg.CallbackQuery, chatID int64) bool {
 }
 
 func handlePauseAction(cb *tg.CallbackQuery, r *core.RoomState) error {
-	opt := &tg.CallbackOptions{Alert: true}
+	opt := &tg.CallbackOptions{Alert: false}
 	chatID := cb.ChannelID()
 	gologging.InfoF("Callback → pause, chatID=%d", chatID)
 
@@ -181,7 +191,7 @@ func handlePauseAction(cb *tg.CallbackQuery, r *core.RoomState) error {
 }
 
 func handleResumeAction(cb *tg.CallbackQuery, r *core.RoomState) error {
-	opt := &tg.CallbackOptions{Alert: true}
+	opt := &tg.CallbackOptions{Alert: false}
 	chatID := cb.ChannelID()
 	gologging.InfoF("Callback → resume, chatID=%d", chatID)
 
@@ -204,7 +214,7 @@ func handleResumeAction(cb *tg.CallbackQuery, r *core.RoomState) error {
 }
 
 func handleReplayAction(cb *tg.CallbackQuery, r *core.RoomState) error {
-	opt := &tg.CallbackOptions{Alert: true}
+	opt := &tg.CallbackOptions{Alert: false}
 	chatID := cb.ChannelID()
 	gologging.InfoF("Callback → replay, chatID=%d", chatID)
 
@@ -252,7 +262,7 @@ func handleReplayAction(cb *tg.CallbackQuery, r *core.RoomState) error {
 }
 
 func handleSkipAction(cb *tg.CallbackQuery, r *core.RoomState) error {
-	opt := &tg.CallbackOptions{Alert: true}
+	opt := &tg.CallbackOptions{Alert: false}
 	chatID := cb.ChannelID()
 	gologging.InfoF("Callback → skip, chatID=%d", chatID)
 
@@ -331,7 +341,7 @@ func handleSkipAction(cb *tg.CallbackQuery, r *core.RoomState) error {
 }
 
 func handleStopAction(cb *tg.CallbackQuery, r *core.RoomState) error {
-	opt := &tg.CallbackOptions{Alert: true}
+	opt := &tg.CallbackOptions{Alert: false}
 	chatID := cb.ChannelID()
 	gologging.InfoF("Callback → stop, chatID=%d", chatID)
 
@@ -348,7 +358,7 @@ func handleStopAction(cb *tg.CallbackQuery, r *core.RoomState) error {
 }
 
 func handleMuteAction(cb *tg.CallbackQuery, r *core.RoomState) error {
-	opt := &tg.CallbackOptions{Alert: true}
+	opt := &tg.CallbackOptions{Alert: false}
 	chatID := cb.ChannelID()
 
 	if r.IsMuted() {
@@ -377,7 +387,7 @@ func handleMuteAction(cb *tg.CallbackQuery, r *core.RoomState) error {
 }
 
 func handleUnmuteAction(cb *tg.CallbackQuery, r *core.RoomState) error {
-	opt := &tg.CallbackOptions{Alert: true}
+	opt := &tg.CallbackOptions{Alert: false}
 	chatID := cb.ChannelID()
 
 	if !r.IsMuted() {
@@ -394,6 +404,65 @@ func handleUnmuteAction(cb *tg.CallbackQuery, r *core.RoomState) error {
 
 	cb.Answer(F(chatID, "cb_unmute_success"), opt)
 	updatePlaybackMessage(cb, r, "playing")
+	return tg.ErrEndGroup
+}
+
+func handleSpeedStepAction(
+	cb *tg.CallbackQuery,
+	r *core.RoomState,
+	delta float64,
+	opt *tg.CallbackOptions,
+) error {
+	chatID := cb.ChannelID()
+	currentSpeed := r.Speed()
+
+	newSpeed := currentSpeed + delta
+	if newSpeed < 0.50 {
+		newSpeed = 0.50
+	}
+	if newSpeed > 4.0 {
+		newSpeed = 4.0
+	}
+
+	if newSpeed == currentSpeed {
+		cb.Answer(F(chatID, "speed_already_set", locales.Arg{
+			"speed": fmt.Sprintf("%.2f", newSpeed),
+			"title": utils.EscapeHTML(utils.ShortTitle(r.Track().Title, 25)),
+		}), opt)
+		return tg.ErrEndGroup
+	}
+
+	if err := r.SetSpeed(newSpeed); err != nil {
+		cb.Answer(F(chatID, "speed_failed", locales.Arg{
+			"speed": fmt.Sprintf("%.2f", newSpeed),
+			"error": err.Error(),
+		}), opt)
+		return tg.ErrEndGroup
+	}
+
+	cb.Answer(F(chatID, "speed_set", locales.Arg{
+		"speed": fmt.Sprintf("%.2f", newSpeed),
+		"user":  utils.MentionHTML(cb.Sender),
+	}), opt)
+
+	updatePlaybackMessage(cb, r, "playing")
+	return tg.ErrEndGroup
+}
+
+func handleSpeedStatusAction(
+	cb *tg.CallbackQuery,
+	r *core.RoomState,
+	opt *tg.CallbackOptions,
+) error {
+	chatID := cb.ChannelID()
+	t := r.Track()
+
+	cb.Answer(F(chatID, "speed_current", locales.Arg{
+		"speed": fmt.Sprintf("%.2f", r.Speed()),
+		"title": utils.EscapeHTML(utils.ShortTitle(t.Title, 25)),
+		"cmd":   "speed",
+	}), opt)
+
 	return tg.ErrEndGroup
 }
 

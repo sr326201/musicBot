@@ -40,26 +40,27 @@ var (
 	StringSessions []string
 	SessionType    string
 
-	DisableColour       bool
-	OwnerID             int64
-	SpotifyClientID     string
-	SpotifyClientSecret string
-	FallenAPIURL        string
-	FallenAPIKey        string
-	DefaultLang         string
-	DurationLimit       int
-	LeaveOnDemoted      bool
-	QueueLimit          int
-	SupportChat         string
-	SupportChannel      string
-	CookiesLink         string
-	SetCmds             bool
-	MaxAuthUsers        int
-	StartImages         []string
-	EffectIDs           []int64
-	PingImage           string
-	Port                string
-	EnablePprof         bool
+	DisableColour           bool
+	OwnerID                 int64
+	SpotifyClientID         string
+	SpotifyClientSecret     string
+	FallenAPIURL            string
+	FallenAPIKey            string
+	DefaultLang             string
+	DurationLimit           int
+	LeaveOnDemoted          bool
+	QueueLimit              int
+	PlaybackControlCooldown int
+	SupportChat             string
+	SupportChannel          string
+	CookiesLink             string
+	SetCmds                 bool
+	MaxAuthUsers            int
+	StartImages             []string
+	EffectIDs               []int64
+	PingImage               string
+	Port                    string
+	EnablePprof             bool
 
 	StartTime   time.Time
 	LogFileName = "logs.txt"
@@ -127,6 +128,7 @@ func loadConfig() {
 	DurationLimit = int(getInt64("DURATION_LIMIT", 4200))
 	LeaveOnDemoted = getBool("LEAVE_ON_DEMOTED", false)
 	QueueLimit = int(getInt64("QUEUE_LIMIT", 24))
+	PlaybackControlCooldown = int(getInt64("PLAYBACK_CONTROL_COOLDOWN", 0))
 	SupportChat = getString("SUPPORT_CHAT", "https://t.me/TheTeamVk")
 	SupportChannel = getString("SUPPORT_CHANNEL", "https://t.me/TheTeamVivek")
 	CookiesLink = getString("COOKIES_LINK", "")

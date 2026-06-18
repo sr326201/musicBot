@@ -32,6 +32,8 @@ import (
 const (
 	minSpeed         = 0.50
 	maxSpeed         = 4.0
+	minVolume        = 0.0
+	maxVolume        = 2.0
 	seekEndThreshold = 10
 	seekSafetyMargin = 5
 )
@@ -100,19 +102,12 @@ func (r *RoomState) Pause(autoResumeAfter ...time.Duration) (bool, error) {
 		return false, err
 	}
 
-	r.mu.RLock()
-	isMuted := r.muted
-	r.mu.RUnlock()
-
-	if isMuted {
-		r.Unmute()
-	}
-
 	r.mu.Lock()
 	r.updatePosition()
 	r.paused = true
-	r.muted = false
+	r.mu.Unlock()
 
+	r.mu.Lock()
 	if r.scheduledTimers == nil {
 		r.scheduledTimers = &scheduledTimers{}
 	}
@@ -144,6 +139,7 @@ func (r *RoomState) Resume() (bool, error) {
 
 	r.mu.RLock()
 	alreadyPlaying := !r.paused
+	wasMuted := r.muted
 	r.mu.RUnlock()
 
 	if alreadyPlaying {
@@ -157,13 +153,16 @@ func (r *RoomState) Resume() (bool, error) {
 
 	r.mu.Lock()
 	r.paused = false
-	r.muted = false
 	r.playing = true
 	r.updatedAt = time.Now().Unix()
 	if r.scheduledTimers != nil {
 		r.scheduledTimers.cancelScheduledResume()
 	}
 	r.mu.Unlock()
+
+	if wasMuted {
+		_, _ = r.Assistant.Ntg.Mute(r.ID)
+	}
 
 	return resumed, nil
 }
@@ -277,11 +276,16 @@ func (r *RoomState) Seek(seconds int) error {
 		newPos = 0
 	}
 
+	wasPaused := r.paused
+	wasMuted := r.muted
+
 	r.position = newPos
-	r.paused = false
-	r.muted = false
 	r.updatedAt = time.Now().Unix()
 	r.mu.Unlock()
+
+	if wasPaused {
+		return nil
+	}
 
 	err := r.play()
 	if err != nil {
@@ -294,12 +298,8 @@ func (r *RoomState) Seek(seconds int) error {
 		return err
 	}
 
-	r.mu.RLock()
-	wasMuted := snapshot.muted
-	r.mu.RUnlock()
-
 	if wasMuted {
-		r.Assistant.Ntg.Unmute(r.ID)
+		_, _ = r.Assistant.Ntg.Mute(r.ID)
 	}
 
 	return nil
@@ -317,6 +317,8 @@ func (r *RoomState) SetSpeed(
 	r.mu.RLock()
 	hasTrack := r.track != nil && r.filePath != ""
 	currentSpeed := r.speed
+	wasPaused := r.paused
+	wasMuted := r.muted
 	r.mu.RUnlock()
 
 	if !hasTrack {
@@ -338,15 +340,20 @@ func (r *RoomState) SetSpeed(
 	r.mu.Lock()
 	r.updatePosition()
 	r.speed = speed
-	r.playing = true
-	r.paused = false
-	r.muted = false
 	r.updatedAt = time.Now().Unix()
 	r.mu.Unlock()
+
+	if wasPaused {
+		return nil
+	}
 
 	err := r.play()
 	if err != nil {
 		return err
+	}
+
+	if wasMuted {
+		_, _ = r.Assistant.Ntg.Mute(r.ID)
 	}
 
 	r.mu.Lock()
@@ -375,17 +382,30 @@ func (r *RoomState) resetSpeedToNormal() {
 	}
 
 	r.mu.Lock()
-	if r.track == nil || !r.playing || r.speed == 1.0 {
+	if r.track == nil || !r.playing {
 		r.mu.Unlock()
 		return
 	}
+
+	wasPaused := r.paused
+	wasMuted := r.muted
 
 	r.updatePosition()
 	r.speed = 1.0
 	r.updatedAt = time.Now().Unix()
 	r.mu.Unlock()
 
-	r.play()
+	if wasPaused {
+		return
+	}
+
+	if err := r.play(); err != nil {
+		return
+	}
+
+	if wasMuted {
+		_, _ = r.Assistant.Ntg.Mute(r.ID)
+	}
 }
 
 // Mute mutes playback with optional auto-unmute
@@ -407,16 +427,6 @@ func (r *RoomState) Mute(unmuteAfter ...time.Duration) (bool, error) {
 		return false, err
 	}
 
-	r.mu.RLock()
-	isPaused := r.paused
-	r.mu.RUnlock()
-
-	if isPaused {
-		r.Resume()
-	} else {
-		r.Parse()
-	}
-
 	r.mu.Lock()
 	r.muted = true
 	if r.scheduledTimers == nil {
@@ -429,7 +439,6 @@ func (r *RoomState) Mute(unmuteAfter ...time.Duration) (bool, error) {
 		r.scheduledUnmuteUntil = time.Now().Add(duration)
 		r.scheduledUnmuteTimer = time.AfterFunc(duration, func() {
 			if !r.IsDestroyed() {
-				r.Parse()
 				r.Unmute()
 			}
 		})
@@ -453,7 +462,6 @@ func (r *RoomState) Unmute() (bool, error) {
 	r.mu.Lock()
 	r.updatePosition()
 	r.muted = false
-	r.paused = false
 	if r.scheduledTimers != nil {
 		r.scheduledTimers.cancelScheduledUnmute()
 	}
@@ -463,20 +471,75 @@ func (r *RoomState) Unmute() (bool, error) {
 }
 
 func (r *RoomState) play() error {
-	desc := getMediaDescription(r.filePath, r.position, r.speed, r.track.Video)
+	desc := getMediaDescription(r.filePath, r.position, r.speed, r.volume, r.track.Video)
 	return r.Assistant.Ntg.Play(r.ID, desc)
+}
+
+func (r *RoomState) SetVolume(volume float64) error {
+	if r.IsDestroyed() {
+		return ErrRoomDestroyed
+	}
+
+	r.mu.RLock()
+	hasTrack := r.track != nil && r.filePath != ""
+	currentVolume := r.volume
+	wasPaused := r.paused
+	wasMuted := r.muted
+	r.mu.RUnlock()
+
+	if !hasTrack {
+		return fmt.Errorf("no track to adjust volume")
+	}
+
+	if volume < minVolume || volume > maxVolume {
+		return fmt.Errorf(
+			"invalid volume: must be between %.0f%% and %.0f%%",
+			minVolume*100,
+			maxVolume*100,
+		)
+	}
+
+	if currentVolume == volume {
+		return nil
+	}
+
+	r.mu.Lock()
+	r.updatePosition()
+	r.volume = volume
+	r.updatedAt = time.Now().Unix()
+	r.mu.Unlock()
+
+	if wasPaused {
+		return nil
+	}
+
+	if err := r.play(); err != nil {
+		return err
+	}
+
+	if wasMuted {
+		_, _ = r.Assistant.Ntg.Mute(r.ID)
+	}
+
+	return nil
 }
 
 func getMediaDescription(
 	url string,
 	pos int,
 	speed float64,
+	volume float64,
 	isVideo bool,
 ) ntgcalls.MediaDescription {
 	if speed < 0.5 {
 		speed = 0.5
 	} else if speed > 4.0 {
 		speed = 4.0
+	}
+	if volume < minVolume {
+		volume = minVolume
+	} else if volume > maxVolume {
+		volume = maxVolume
 	}
 
 	baseCmd := "ffmpeg "
@@ -488,7 +551,7 @@ func getMediaDescription(
 	}
 	baseCmd += "-v warning -i \"" + url + "\" "
 
-	audio := getAudioPipeline(baseCmd, speed)
+	audio := getAudioPipeline(baseCmd, speed, volume)
 	if !isVideo {
 		return ntgcalls.MediaDescription{
 			Microphone: audio,
@@ -505,6 +568,7 @@ func getMediaDescription(
 func getAudioPipeline(
 	baseCmd string,
 	speed float64,
+	volume float64,
 ) *ntgcalls.AudioDescription {
 	audio := &ntgcalls.AudioDescription{
 		MediaSource:  ntgcalls.MediaSourceShell,
@@ -513,12 +577,16 @@ func getAudioPipeline(
 	}
 
 	audioCmd := baseCmd
-	audioCmd += "-filter:a \"atempo=" + strconv.FormatFloat(
-		speed,
-		'f',
-		2,
-		64,
-	) + "\" "
+	audioFilters := []string{
+		"atempo=" + strconv.FormatFloat(speed, "f", 2, 64),
+	}
+	if volume != 1.0 {
+		audioFilters = append(
+			audioFilters,
+			"volume=" + strconv.FormatFloat(volume, "f", 2, 64),
+		)
+	}
+	audioCmd += "-filter:a \"" + strings.Join(audioFilters, ",") + "\" "
 	audioCmd += "-f s16le -ac " + strconv.Itoa(int(audio.ChannelCount)) + " "
 	audioCmd += "-ar " + strconv.Itoa(int(audio.SampleRate)) + " "
 	audioCmd += "pipe:1"
