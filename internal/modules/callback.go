@@ -601,6 +601,7 @@ func handleVolumeChangeAction(
 		cb.Answer(F(chatID, "invalid_request"), opt)
 		return tg.ErrEndGroup
 	}
+	delta = delta / 100
 
 	if parts[1] == "down" {
 		delta = -delta
