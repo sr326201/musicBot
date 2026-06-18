@@ -149,10 +149,10 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) tg.ReplyMarkup {
 		toggleLabel, toggleAction = "▶️", "resume"
 	}
 
-	muteLabel, muteAction := "🔇", "mute"
+	muteLabel, muteAction := "🔊", "mute"
 
 	if r.IsMuted() {
-		muteLabel, muteAction = "🔊", "unmute"
+		muteLabel, muteAction = "🔇", "unmute"
 	}
 
 	btn.AddRow(
@@ -167,13 +167,13 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) tg.ReplyMarkup {
 		tg.Button.Data(fmt.Sprintf("%.2fx ⏩", speedUp), prefix+"speed_up"),
 	)
 
-	btn.AddRow(
-		tg.Button.Data(muteLabel, prefix+muteAction),
-	)
+	// btn.AddRow(
+	// 	tg.Button.Data(muteLabel, prefix+muteAction),
+	// )
 
 	btn.AddRow(
 		tg.Button.Data("🔉 -20%", prefix+"volume_down_20"),
-		tg.Button.Data(fmt.Sprintf("🔊 %.0f%%", r.Volume()*100), prefix+"volume_status"),
+		tg.Button.Data(fmt.Sprintf("%s %.0f%%", muteLabel, r.Volume()*100), prefix+muteAction),
 		tg.Button.Data("🔊 +20%", prefix+"volume_up_20"),
 	)
 
