@@ -21,6 +21,7 @@ HELP_OWNER_BTN: "👑 स्वामी"
 HELP_SUDOERS_BTN: "⚡ विशेषाधिकारी"
 
 BACK_BTN: "⬅️ पीछे"
+SHARE_TRACK_BTN: "📤 ट्रैक साझा करें"
 
 # basically this string used in /command [bool]
 invalid_bool: "⚠️ <b>अमान्य मान।</b>\n\n<i>कृपया '<code>enable</code>' अथवा '<code>disable</code>' का प्रयोग करें।</i>"
@@ -168,6 +169,16 @@ cb_replaying: "🔁 <b>वर्तमान संगीत पुनः चल
 cb_replay_failed: "❌ संगीत पुनः चलाने में विफल।"
 cb_replay_success: "🔁 संगीत पुनः चलाया गया।"
 cb_replay_edited: "🔁 संगीत {user} द्वारा पुनः चलाया गया।"
+
+# Share callback
+share_success: "📤 ट्रैक को समूह में भेजा गया!"
+share_telegram_skip: "ℹ️ यह ट्रैक पहले ही टेलीग्राम से है।"
+share_failed: "❌ ट्रैक साझा करने में विफल।\nत्रुटि: <code>{error}</code>"
+share_track_text: |
+  🎵 <b>अब चल रहा है:</b>
+  
+  <b>▫ ट्रैक:</b> <a href="{url}">{title}</a>
+  <b>▫ अवधि:</b> {duration}
 
 # Skip callback
 cb_skip_queue_empty: "⏹️ संगीत बन्द — प्रतीक्षा सूची रिक्त है।"

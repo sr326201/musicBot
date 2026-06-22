@@ -18,12 +18,10 @@
 package modules
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/amarnathcjd/gogram/telegram"
 
-	"main/internal/core"
 	"main/internal/locales"
 	"main/internal/utils"
 )
@@ -68,35 +66,45 @@ func handleStop(m *telegram.NewMessage, cplay bool) error {
 		return telegram.ErrEndGroup
 	}
 
-	isPaused := r.IsPaused()
-	isMuted := r.IsMuted()
+	// isPaused := r.IsPaused()
+	// isMuted := r.IsMuted()
 
-	if isPaused || isMuted {
-		stopSuggestFloodKey := fmt.Sprintf(
-			"stop_suggest:%d",
-			r.ID,
-		)
-		if utils.GetFlood(stopSuggestFloodKey) <= 0 {
-			utils.SetFlood(stopSuggestFloodKey, stopConfirmSuggestionCooldown)
-			msgKey := "stop_confirm_paused"
-			if isMuted {
-				msgKey = "stop_confirm_muted"
-			}
-			m.Reply(F(m.ChannelID(), msgKey), &telegram.SendOptions{
-				ReplyMarkup: core.GetStopConfirmMarkup(m.ChannelID(), r, isPaused),
-			})
-			return telegram.ErrEndGroup
-		}
-	}
+	// if isPaused || isMuted {
+	// 	stopSuggestFloodKey := fmt.Sprintf(
+	// 		"stop_suggest:%d",
+	// 		r.ID,
+	// 	)
+	// 	if utils.GetFlood(stopSuggestFloodKey) <= 0 {
+	// 		utils.SetFlood(stopSuggestFloodKey, stopConfirmSuggestionCooldown)
+	// 		msgKey := "stop_confirm_paused"
+	// 		if isMuted {
+	// 			msgKey = "stop_confirm_muted"
+	// 		}
+	// 		m.Reply(F(m.ChannelID(), msgKey), &telegram.SendOptions{
+	// 			ReplyMarkup: core.GetStopConfirmMarkup(m.ChannelID(), r, isPaused),
+	// 		})
+	// 		return telegram.ErrEndGroup
+	// 	}
+	// }
 
-	scheduleOldPlayingMessage(r)
-	core.DeleteRoom(r.ID)
-	m.Reply(
-		F(
-			m.ChannelID(),
-			"stopped",
-			locales.Arg{"user": utils.MentionHTML(m.Sender)},
-		),
+	closePlaybackPanel(r, F(m.ChannelID(), "stopped", locales.Arg{
+		"user": utils.MentionHTML(m.Sender),
+	}))
+	// scheduleOldPlayingMessage(r)
+	// core.DeleteRoom(r.ID)
+	// m.Reply(
+	// 	F(
+	// 		m.ChannelID(),
+	// 		"stopped",
+	// 		locales.Arg{"user": utils.MentionHTML(m.Sender)},
+	// 	),
+	// )
+	stoppedText := F(
+		m.ChannelID(),
+		"stopped",
+		locales.Arg{"user": utils.MentionHTML(m.Sender)},
 	)
+	finishPlaybackRoom(r, stoppedText)
+	m.Reply(stoppedText)
 	return telegram.ErrEndGroup
 }

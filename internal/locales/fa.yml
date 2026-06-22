@@ -21,6 +21,7 @@ HELP_OWNER_BTN: "👑 صاحب"
 HELP_SUDOERS_BTN: "⚡ سودوها"
 
 BACK_BTN: "⬅️ بازگشت"
+SHARE_TRACK_BTN: "📤 دریافت"
 
 # basically this string used in /command [bool]
 invalid_bool: "⚠️ <b>مقدار نامعتبر است.</b>\nاز 'enable' یا 'disable' استفاده کن."
@@ -146,9 +147,9 @@ cb_pause_success: "⏸️ آهنگ در {position} متوقف شد"
 cb_pause_message: |
   <b>⏸️ آهنگ متوقف شد</b>
 
-  <b>▫ آهنگ:</b> <a href="{url}">{title}</a>
-  <b>▫ موقعیت:</b> {position} / {duration}
-  <b>▫ متوقف‌شده توسط:</b> {user}
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• موقعیت:</b> {position} / {duration}
+  <b>• متوقف‌شده توسط:</b> {user}
 
 # Resume callback
 cb_already_playing: "ℹ️ آهنگ از قبل در حال پخش است."
@@ -157,18 +158,28 @@ cb_resume_success: "▶️ در {position} ادامه داده شد."
 cb_resume_message: |
   <b>🎵 در حال پخش:</b>
 
-  <b>▫ آهنگ:</b> <a href="{url}">{title}</a>
-  <b>▫ مدت:</b> {duration}
-  <b>▫ ادامه داده‌شده توسط:</b> {user}
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• ادامه داده‌شده توسط:</b> {user}
 
 # Replay callback
 cb_replaying: "🔁 <b>Replaying current track...</b>"
 cb_replay_failed: "❌ Failed to replay track."
-cb_replay_success: "🔁 آهنگ replayed."
-cb_replay_edited: "🔁 آهنگ replayed by {user}."
+cb_replay_success: "🔁 آهنگ ریپلی شد."
+cb_replay_edited: "🔁 آهنگ توسط {user} ریپلی شد"
+
+# Share callback
+share_success: "📤 آهنگ به گروه فرستاده شد!"
+share_telegram_skip: "ℹ️ این آهنگ از تلگرام است."
+share_failed: "❌ اشتراک‌گذاری آهنگ ناموفق بود.\nخطا: <code>{error}</code>"
+share_track_text: |
+  🎵 <b>در حال پخش:</b>
+
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
 
 # Skip callback
-cb_skip_queue_empty: "⏹️ پخش stopped — queue empty."
+cb_skip_queue_empty: "⏹️ پخش متوقف شد — چیزی برا پخش نیست."
 cb_skip_download_failed: "❌ Failed to download next track."
 cb_skip_play_failed: "❌ Failed to play next track."
 cb_skip_success: "⏭️ آهنگ skipped."
@@ -178,14 +189,15 @@ cb_skip_edited: "⏭️ Skipped by {user}"
 cb_stop_success: "⏹️ پخش stopped."
 
 # Mute/Unmute callback
-cb_mute_success: "🔇 Muted."
+cb_mute_success: "میوته 🔇"
 cb_mute_message: |
-  <b>🔇 پخش Muted</b>
+  <b>🔇 پخش میوت شد</b>
 
-  <b>▫ آهنگ:</b> <a href="{url}">{title}</a>
-  <b>▫ بی‌صداشده توسط:</b> {user}
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• بی‌صداشده توسط:</b> {user}
 
-cb_unmute_success: "🔊 Unmuted."
+cb_unmute_success: "آن میوته 🔊"
 
 cb_seek_success: "⏩ Sought forward {seconds} seconds"
 cb_seek_near_end: "⚠️ Cannot seek forward {seconds} seconds — about to reach end."
@@ -306,7 +318,7 @@ err_download_internal: |
   ⚠️ <b>Download failed</b> due to an unexpected internal error.
   Please try again later.
 
-flood_seconds: "⏳ آروم‌تر! {duration} ثانیه دیگر دوباره امتحان کن."
+flood_seconds: "Don't spam 🤫"
 flood_minutes: "⏳ لطفاً {duration} دقیقه صبر کن تا دوباره بتوانی از این فرمان استفاده کنی."
 
 help_private_only: "🤖 سلام! برای راهنما و فرمان‌های ربات، لطفاً مستقیم در پیوی به من پیام بده — در چت خصوصی سریع‌تر جواب می‌دم!"
@@ -484,9 +496,9 @@ play_download_failed: |
 play_added_to_queue_single: |
   <b>🎵 به صف اضافه شد:</b> #{index}
 
-  <b>▫ آهنگ:</b> <a href="{url}">{title}</a>
-  <b>▫ مدت:</b> {duration}
-  <b>▫ درخواست‌شده توسط:</b> {by}
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• درخواست‌شده توسط:</b> {by}
 
 play_multiple_tracks_too_long_header: "<b>⚠️ {count} tracks were skipped (max duration {limit_mins} mins):</b>"
 play_multiple_tracks_too_long_item: "— <i>{title}</i>"
@@ -598,7 +610,7 @@ restart_confirm_bot: "♻️ Restarting the bot..."
 restart_confirm_replay_done: "⏮️ Current song replayed successfully."
 
 room_not_active_cb: "⚠️ Nothing playing right now."
-room_no_active: "⚠️ <b>پخش فعالی نداریم.</b>\n\n<i>There's nothing playing right now.</i>"
+room_no_active: "⚠️ <b>این پخش فعال نیست.</b>"
 room_not_linked: "⚠️ This channel isn't linked to any group."
 
 room_already_paused: "⏸️ آهنگ is already paused. Tap ▶️ Resume to continue."
@@ -619,9 +631,9 @@ rtmp_play_failed: |
 rtmp_now_streaming: |
   📡 <b>Now Streaming (RTMP):</b>
 
-  <b>▫ آهنگ:</b> <a href="{url}">{title}</a>
-  <b>▫ مدت:</b> {duration}
-  <b>▫ Started by:</b> {by}
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• Started by:</b> {by}
 
   ⚠️ <i>Note: RTMP has ~15-30s buffering delay</i>
 
@@ -635,8 +647,8 @@ rtmp_stopped: |
 rtmp_status_playing: |
   📡 <b>RTMP Status</b>
 
-  <b>▫ State:</b> ▶️ Streaming
-  <b>▫ Position:</b> {position}
+  <b>• State:</b> ▶️ Streaming
+  <b>• Position:</b> {position}
 
 rtmp_dm_only: "⚠️ Use this command in DM."
 
@@ -777,7 +789,7 @@ stop_confirm_muted: |
 
   Do you want to unmute or stop it completely?
 
-stopped: "⏹️ <b>پخش stopped and cleared by {user}.</b>"
+stopped: "⏹️ <b>پخش توسط {user} متوقف شد.</b>"
 
 shuffle_current_state: "🔀 Currently shuffle is <b>{state}</b> for this chat.\n\nUse <code>{cmd}</code> to toggle it."
 shuffle_updated: "🔀 Shuffle <b>{state}</b> by {user}."
@@ -819,22 +831,20 @@ speed_failed: |
   ❌ Failed to change speed to <b>{speed}x</b>.
   Error: <code>{error}</code>
 
-speed_reset_success: "✅ پخش speed reset to <b>1.0x</b> by {user}"
+speed_reset_success: "✅ سرعت پخش ریست شد to <b>1.0x</b> توسط {user}"
 
-speed_set: "🚀 سرعت پخش روی <b>{speed}x</b> تنظیم شد توسط {user}."
+speed_set: "سرعت پخش روی {speed}x تنظیم شد 🚀"
 speed_set_with_reset: |
-  🚀 سرعت پخش روی <b>{speed}x</b> تنظیم شد توسط {user}.
-  ⏳ خودبه‌خوداً پس از <b>{duration}</b> ثانیه بازنشانی می‌شود.
-
+  🚀 سرعت پخش {speed}x
+#  ⏳ خودبه‌خوداً پس از <b>{duration}</b> ثانیه بازنشانی می‌شود.
 # 🔊 Volume messages
 volume_current: "🔊 <b>صدای فعلی:</b> <code>{volume}</code> برای 🎵 <u>{title}</u>\n\n💡 از <code>{cmd} 100</code> برای بازگرداندن صدا استفاده کن."
-volume_already_set: "ℹ️ صدا از قبل روی <b>{volume}</b> برای 🎵 <b>{title}</b> تنظیم شده"
+volume_already_set: "جا نداره دیگه!"
 volume_invalid: "❌ مقدار صدا نامعتبر است.\nمثال: <code>{cmd} 50</code> یا <code>{cmd} 75</code>"
 volume_failed: |
   ❌ تغییر صدا به <b>{volume}</b> ناموفق بود.
   خطا: <code>{error}</code>
-volume_set: "🔊 صدا توسط {user} روی <b>{volume}</b> تنظیم شد."
-
+volume_set: "روی {volume} تنظیم شد  🔊"
 volume_usage: |
   💡 <b>نحوه استفاده:</b>
   <code>{cmd} [مقدار]</code> — تنظیم صدا (۰ تا ۱۰۰)
@@ -884,7 +894,7 @@ start_group: |
 stream_channelid_fail: |
   ⚠️ نتوانستم شناسه کانال متصلت را بگیرم.
 stream_queue_finished: |
-  🎵 <b>صف تمام شد!</b>
+  🎵 <b>تمام شد!</b>
 stream_downloading_next: |
   📥 در حال دانلود آهنگ بعدی...
 stream_download_fail: |
@@ -895,9 +905,10 @@ stream_play_fail: |
 stream_now_playing: |
   🎵 <b>در حال پخش:</b>
 
-  <b>▫ آهنگ:</b> <a href="{url}">{title}</a>
-  <b>▫ مدت:</b> {duration}
-  <b>▫ درخواست‌شده توسط:</b> {by}
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• درخواست‌شده توسط:</b> {by}
+
 sudo_join_owner: "👑 {user} — owner of {bot} — just entered the chat."
 sudo_join_sudo: "🛡️ {user}, a sudo user of {bot}, just joined the chat."
 
@@ -924,13 +935,37 @@ unmute_success: |
   👤 صدا را برگرداند: {user}
   {speed_line}
 voicechat_ended: |
-  <b>⚠️ ویس‌چت تمام شد</b>
+  ویس کال تموم شد.
+  برید خونه هاتون
 
-  <i>⏰ مدت: {duration}</i>
+  ⏰ مدت: {duration}
 voicechat_started: |
-  <b>♻️ ویس‌چت شروع شد!</b>
+  ویس کال شروع شد.
 
-  <i>برای پخش موسیقی از /play [نام آهنگ] استفاده کن.</i>
+voice_chat_create_confirm: |
+  🎙️ ویس کال فعال نیست!
+
+  می‌خوای فعالش کنم؟
+
+voice_chat_start_yes: "شروع کال"
+voice_chat_start_no: "نیاز نیست"
+voice_chat_started: "✅ ویس‌چت فعال شد. در حال آماده‌سازی پخش..."
+voice_chat_already_active: "✅ ویس‌چت از قبل فعال است."
+voice_chat_cancelled: "پخش لغو شد."
+voice_chat_start_failed: "❌ فعال‌سازی ویس‌چت ناموفق بود: {error}"
+voice_chat_play_resumed: "پخش شروع شد."
+voice_chat_pending_expired: "درخواست پخش منقضی شده؛ لطفاً دوباره آهنگ را بفرست."
+
+playback_finished: |
+  ☕️ <b>پخش به اتمام رسید.</b>
+
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• درخواستیه:</b> {by}
+
+playback_stopped: |
+  پخش متوقف شد!
+
 help_owner: |
   👑 <b>فرمان‌های صاحب ربات</b>
 

@@ -31,6 +31,82 @@ import (
 	"main/ntgcalls"
 )
 
+func closePlaybackPanel(r *core.RoomState, text string) {
+	if r == nil {
+		return
+	}
+
+	statusMsg := r.StatusMsg()
+	if statusMsg == nil {
+		return
+	}
+
+	if _, err := statusMsg.Edit(text, &telegram.SendOptions{
+		ParseMode:   "HTML",
+		ReplyMarkup: telegram.NewKeyboard().Build(),
+	}); err != nil {
+		if telegram.MatchError(err, "MESSAGE_NOT_MODIFIED") {
+			gologging.DebugF(
+				"Playback panel already has same finished state chat=%d",
+				statusMsg.ChannelID(),
+			)
+			return
+		}
+
+		gologging.ErrorF(
+			"Playback panel edit failed chat=%d: %v",
+			statusMsg.ChannelID(),
+			err,
+		)
+
+		if _, delErr := statusMsg.Delete(); delErr != nil {
+			gologging.ErrorF(
+				"Playback panel delete failed chat=%d: %v",
+				statusMsg.ChannelID(),
+				delErr,
+			)
+		}
+	}
+}
+
+func finishPlaybackRoom(r *core.RoomState, text string) {
+	if r == nil {
+		return
+	}
+
+	closePlaybackPanel(r, text)
+	scheduleOldPlayingMessage(r)
+	core.DeleteRoom(r.ID)
+}
+
+func buildPlaybackFinishedText(chatID int64, r *core.RoomState) string {
+	if r == nil {
+		return F(chatID, "playback_finished", locales.Arg{
+			"title":    "-",
+			"url":      "#",
+			"duration": "-",
+		})
+	}
+
+	track := r.Track()
+	if track == nil {
+		return F(chatID, "playback_finished", locales.Arg{
+			"title":    "-",
+			"url":      "#",
+			"duration": "-",
+		})
+	}
+
+	title := utils.EscapeHTML(utils.ShortTitle(track.Title, 35))
+
+	return F(chatID, "playback_finished", locales.Arg{
+		"title":    title,
+		"url":      track.URL,
+		"duration": utils.FormatDuration(track.Duration),
+		"by":       track.Requester,
+	})
+}
+
 func streamEndHandler(
 	chatID int64,
 	streamType ntgcalls.StreamType,
@@ -51,7 +127,8 @@ func streamEndHandler(
 	if !ok {
 		return
 	}
-	scheduleOldPlayingMessage(r)
+
+	// scheduleOldPlayingMessage(r)
 
 	if ok, v := r.GetData("is_transitioning"); ok {
 		if ok, v := v.(bool); ok && v {
@@ -68,8 +145,10 @@ func streamEndHandler(
 	var t *state.Track
 	var wasLooping bool
 	if len(r.Queue()) == 0 && r.Loop() == 0 {
-		core.DeleteRoom(chatID)
-		core.Bot.SendMessage(cid, F(cid, "stream_queue_finished"))
+		// closePlaybackPanel(r, buildPlaybackFinishedText(cid, r))
+		finishPlaybackRoom(r, buildPlaybackFinishedText(cid, r))
+		// core.DeleteRoom(chatID)
+		// core.Bot.SendMessage(cid, F(cid, "stream_queue_finished"))
 		return
 	} else {
 		wasLooping = r.Loop() > 0

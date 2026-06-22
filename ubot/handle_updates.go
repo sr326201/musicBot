@@ -363,6 +363,48 @@ func (ctx *Context) handleUpdates() {
 		},
 	)
 
+	ctx.app.AddRawHandler(
+		&tg.UpdateGroupCallMessage{},
+		func(m tg.Update, c *tg.Client) error {
+			update, ok := m.(*tg.UpdateGroupCallMessage)
+			if !ok {
+				return nil
+			}
+
+			callObj, ok := update.Call.(*tg.InputGroupCallObj)
+			if !ok {
+				return nil
+			}
+
+			chatID, err := ctx.convertGroupCallId(callObj.ID)
+			if err != nil {
+				return nil
+			}
+
+			if update.Message == nil || update.Message.Message == nil {
+				return nil
+			}
+
+			text := update.Message.Message.Text
+			if text == "" {
+				return nil
+			}
+
+			senderID := getGroupCallMessageSenderID(update.Message.FromID)
+			senderName := getGroupCallMessageSenderName(c, senderID)
+
+			ctx.dispatchGroupCallMessage(&GroupCallMessageEvent{
+				ChatID:     chatID,
+				SenderID:   senderID,
+				SenderName: senderName,
+				Text:       text,
+				Call:       update.Call,
+			})
+
+			return nil
+		},
+	)
+
 	ctx.binding.OnRequestBroadcastTimestamp(func(chatId int64) {
 		ctx.inputGroupCallsMutex.RLock()
 		inputGroupCall := ctx.inputGroupCalls[chatId]

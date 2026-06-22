@@ -20,8 +20,6 @@ package modules
 import (
 	"time"
 
-	"github.com/amarnathcjd/gogram/telegram"
-
 	"main/internal/core"
 )
 
@@ -39,35 +37,38 @@ func MonitorRooms() {
 			go func(chatID int64, r *core.RoomState) {
 				defer func() { <-sem }()
 
-				if !r.IsActiveChat() {
-					/*
-						// TODO: TEST IT AND INCREASE SLEEP TIME
-						time.Sleep(5 * time.Second)
-
-						if !r.IsActiveChat() {
-							core.DeleteRoom(chatID)
-							return
-						}
-					*/
-					return
-				}
-
 				if r.IsPaused() {
 					return
 				}
 
+				// if !r.IsActiveChat() {
+				// 	if r.IsEnded() {
+				// 		closePlaybackPanel(r, buildPlaybackFinishedText(r.ChatID, r))
+				// 		core.DeleteRoom(chatID)
+				// 	}
+				// 	return
+				// }
+				if !r.IsActiveChat() {
+					finishPlaybackRoom(r, buildPlaybackFinishedText(r.ChatID, r))
+					return
+				}
+
 				r.Parse()
+
 				statusMsg := r.StatusMsg()
 				if statusMsg == nil {
 					return
 				}
 
-				markup := core.GetPlayMarkup(r.ChatID, r, false)
-				opts := &telegram.SendOptions{
-					ReplyMarkup: markup,
-					Entities:    statusMsg.Message.Entities,
+				okLast, last := r.GetData("panel_last_edit")
+				if okLast {
+					if t, ok := last.(time.Time); ok && time.Since(t) < 10*time.Second {
+						return
+					}
 				}
-				statusMsg.Edit(statusMsg.Text(), opts)
+
+				r.SetData("panel_last_edit", time.Now())
+				schedulePlaybackPanelRefresh(r.ChatID, r, "", "")
 			}(chatID, room)
 		}
 	}

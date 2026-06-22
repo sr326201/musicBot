@@ -94,6 +94,8 @@ func handleResume(m *telegram.NewMessage, cplay bool) error {
 			"user":       mention,
 			"speed_line": speedLine,
 		}))
+
+		schedulePlaybackPanelRefresh(chatID, r, "playing", mention)
 	}
 
 	return telegram.ErrEndGroup

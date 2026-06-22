@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Laky-64/gologging"
@@ -43,6 +44,17 @@ type playOpts struct {
 	CPlay bool
 	Video bool
 }
+type pendingPlay struct {
+	m              *tg.NewMessage
+	replyMsg       *tg.NewMessage
+	r              *core.RoomState
+	tracks         []*state.Track
+	mention        string
+	opts           *playOpts
+	availableSlots int
+}
+
+var pendingPlays sync.Map
 
 const playMaxRetries = 3
 
@@ -173,6 +185,8 @@ func cplayHandler(m *tg.NewMessage) error { return handlePlay(m, &playOpts{CPlay
 func handlePlay(m *tg.NewMessage, opts *playOpts) error {
 	chatID := m.ChannelID()
 
+	reactToCommandMessage(m, "👀")
+
 	if !canUsePlayCommand(m, chatID) {
 		m.Reply(F(chatID, "playmode_restricted"))
 		return tg.ErrEndGroup
@@ -183,7 +197,7 @@ func handlePlay(m *tg.NewMessage, opts *playOpts) error {
 		return tg.ErrEndGroup
 	}
 
-	tracks, isActive, err := fetchTracksAndCheckStatus(m, searchMsg, room, opts.Video)
+	tracks, err := fetchTracksAndCheckStatus(m, searchMsg, room, opts.Video)
 	if err != nil {
 		return tg.ErrEndGroup
 	}
@@ -203,10 +217,118 @@ func handlePlay(m *tg.NewMessage, opts *playOpts) error {
 	}
 
 	mention := utils.MentionHTML(m.Sender)
-	if err := playTracksAndRespond(m, searchMsg, room, tracks, mention, isActive, opts.Force, availableSlots); err != nil {
+
+	chatState, err := core.GetChatState(room.ID)
+	if err != nil {
+		gologging.ErrorF("Error getting chat state: %v", err)
+		utils.EOR(searchMsg, getErrorMessage(m.ChannelID(), err))
+		return tg.ErrEndGroup
+	}
+
+	if err := ensureVoiceChatReady(
+		m.ChannelID(),
+		searchMsg,
+		chatState,
+		&pendingPlay{
+			m:              m,
+			replyMsg:       searchMsg,
+			r:              room,
+			tracks:         tracks,
+			mention:        mention,
+			opts:           opts,
+			availableSlots: availableSlots,
+		},
+	); err != nil {
+		return tg.ErrEndGroup
+	}
+
+	isActive := room.IsActiveChat()
+
+	if err := playTracksAndRespond(
+		m,
+		searchMsg,
+		room,
+		tracks,
+		mention,
+		isActive,
+		opts.Force,
+		availableSlots,
+	); err != nil {
 		return err
 	}
 
+	return tg.ErrEndGroup
+}
+
+func storePendingPlay(p pendingPlay) string {
+	id := strconv.FormatInt(time.Now().UnixNano(), 36)
+	pendingPlays.Store(id, p)
+	return id
+}
+
+func resumePendingPlay(id string, cb *tg.CallbackQuery) error {
+	opt := &tg.CallbackOptions{Alert: false}
+	chatID := cb.ChannelID()
+
+	raw, ok := pendingPlays.LoadAndDelete(id)
+	if !ok {
+		msg := F(chatID, "voice_chat_pending_expired")
+		if _, err := cb.Edit(msg); err != nil {
+			gologging.ErrorF("Pending play expired edit failed: %v", err)
+		}
+		cb.Answer(msg, opt)
+		return tg.ErrEndGroup
+	}
+
+	p, ok := raw.(pendingPlay)
+	if !ok || p.m == nil || p.replyMsg == nil || p.r == nil || p.opts == nil || len(p.tracks) == 0 {
+		msg := F(chatID, "voice_chat_pending_expired")
+		if _, err := cb.Edit(msg); err != nil {
+			gologging.ErrorF("Invalid pending play edit failed: %v", err)
+		}
+		cb.Answer(msg, opt)
+		return tg.ErrEndGroup
+	}
+
+	if p.r.IsDestroyed() {
+		msg := F(chatID, "voice_chat_pending_expired")
+		if _, err := cb.Edit(msg); err != nil {
+			gologging.ErrorF("Destroyed pending room edit failed: %v", err)
+		}
+		cb.Answer(msg, opt)
+		return tg.ErrEndGroup
+	}
+
+	chatState, err := core.GetChatState(p.r.ID)
+	if err != nil {
+		gologging.ErrorF("Error getting chat state while resuming pending play: %v", err)
+		utils.EOR(p.replyMsg, getErrorMessage(chatID, err))
+		cb.Answer(F(chatID, "voice_chat_start_failed", locales.Arg{"error": err.Error()}), opt)
+		return tg.ErrEndGroup
+	}
+
+	chatState.SetVoiceChatActive(true)
+
+	if err := ensureVoiceChatReady(chatID, p.replyMsg, chatState, nil); err != nil {
+		return tg.ErrEndGroup
+	}
+
+	isActive := p.r.IsActiveChat()
+
+	if err := playTracksAndRespond(
+		p.m,
+		p.replyMsg,
+		p.r,
+		p.tracks,
+		p.mention,
+		isActive,
+		p.opts.Force,
+		p.availableSlots,
+	); err != nil {
+		return err
+	}
+
+	cb.Answer(F(chatID, "voice_chat_play_resumed"), opt)
 	return tg.ErrEndGroup
 }
 
@@ -258,10 +380,23 @@ func prepareRoomAndSearchMessage(
 		)
 	}
 
-	replyMsg, err := m.Reply(statusText)
-	if err != nil {
-		gologging.ErrorF("Failed to send searching message: %v", err)
-		return nil, nil, err
+	// replyMsg, err := m.Reply(statusText)
+	// if err != nil {
+	// 	gologging.ErrorF("Failed to send searching message: %v", err)
+	// 	return nil, nil, err
+	// }
+
+	replyMsg, stickerErr := sendPlaySticker(m, statusText)
+	if stickerErr != nil || replyMsg == nil {
+		if stickerErr != nil {
+			gologging.ErrorF("Failed to send play sticker: %v", stickerErr)
+		}
+
+		replyMsg, err = m.Reply(statusText)
+		if err != nil {
+			gologging.ErrorF("Failed to send searching message: %v", err)
+			return nil, nil, err
+		}
 	}
 
 	return room, replyMsg, nil
@@ -280,29 +415,19 @@ func fetchTracksAndCheckStatus(
 	replyMsg *tg.NewMessage,
 	r *core.RoomState,
 	video bool,
-) ([]*state.Track, bool, error) {
+) ([]*state.Track, error) {
 	tracks, err := safeGetTracks(m, replyMsg, m.ChannelID(), video)
 	if err != nil {
 		utils.EOR(replyMsg, err.Error())
-		return nil, false, err
+		return nil, err
 	}
+
 	if len(tracks) == 0 {
 		utils.EOR(replyMsg, F(m.ChannelID(), "no_song_found"))
-		return nil, false, fmt.Errorf("no tracks found")
+		return nil, fmt.Errorf("no tracks found")
 	}
 
-	chatState, err := core.GetChatState(r.ID)
-	if err != nil {
-		gologging.ErrorF("Error getting chat state: %v", err)
-		utils.EOR(replyMsg, getErrorMessage(m.ChannelID(), err))
-		return nil, false, err
-	}
-
-	if err := ensureVoiceChatReady(m.ChannelID(), replyMsg, chatState); err != nil {
-		return nil, false, err
-	}
-
-	return tracks, r.IsActiveChat(), nil
+	return tracks, nil
 }
 
 func isTrackInQueue(r *core.RoomState, t *state.Track) bool {
@@ -323,6 +448,7 @@ func ensureVoiceChatReady(
 	chatID int64,
 	replyMsg *tg.NewMessage,
 	cs *core.ChatState,
+	pending *pendingPlay,
 ) error {
 	snap, err := cs.Snapshot(false)
 	if err != nil {
@@ -330,10 +456,25 @@ func ensureVoiceChatReady(
 		utils.EOR(replyMsg, getErrorMessage(chatID, err))
 		return err
 	}
+
 	if !snap.VoiceChatActive {
-		err := fmt.Errorf("no active voice chat")
-		utils.EOR(replyMsg, F(chatID, "err_no_active_voicechat"))
-		return err
+		markup := core.GetVoiceChatCreateMarkup(chatID)
+
+		if pending != nil {
+			id := storePendingPlay(*pending)
+			markup = core.GetVoiceChatResumeMarkup(chatID, id)
+		}
+
+		utils.EOR(
+			replyMsg,
+			F(chatID, "voice_chat_create_confirm"),
+			&tg.SendOptions{
+				ParseMode:   "HTML",
+				ReplyMarkup: markup,
+			},
+		)
+
+		return fmt.Errorf("no active voice chat")
 	}
 
 	if snap.AssistantBanned {
@@ -840,4 +981,16 @@ func safeDownload(
 	}()
 
 	return platforms.Download(ctx, track, replyMsg)
+}
+
+func isPhoneJoinGroupCallTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	s := err.Error()
+	return strings.Contains(s, "PhoneJoinGroupCall") &&
+		(tg.MatchError(err, "TIMEOUT") ||
+			tg.MatchError(err, "Timedout") ||
+			strings.Contains(s, "Timeout while fetching data"))
 }

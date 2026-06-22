@@ -257,10 +257,39 @@ var handlers = []MsgHandlerDef{
 		Handler: fvcplayHandler,
 		Filters: []telegram.Filter{superGroupFilter, authFilter},
 	},
-
 	{
-		Pattern: "(speed|setspeed|speedup)",
-		Handler: speedHandler,
+		Pattern: "speeddown",
+		Handler: speedDownHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "speedup",
+		Handler: speedUpHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "startcall",
+		Handler: startCallHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "endcall",
+		Handler: endCallHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "calllink",
+		Handler: callLinkHandler,
+		Filters: []telegram.Filter{superGroupFilter, adminFilter},
+	},
+	{
+		Pattern: "volumedown",
+		Handler: volumeDownHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "volumeup",
+		Handler: volumeUpHandler,
 		Filters: []telegram.Filter{superGroupFilter, authFilter},
 	},
 	{
@@ -525,29 +554,45 @@ var handlers = []MsgHandlerDef{
 }
 
 var plainCommandAliases = map[string]string{
-	"پخش ویدیو": "vplay",
-	"پخش":       "play",
-	"پینگ":      "ping",
-	"راهنما":    "help",
-	"تنظیمات":   "settings",
-	"اتمام":     "stop",
-	"مکث":       "pause",
-	"ادامه":     "resume",
-	"بعدی":      "skip",
-	"لیست":      "queue",
+	"توقف پخش":    "stop",
+	"اتمام":       "stop",
+	"مکث پلیر":    "pause",
+	"ازسرگیری":    "resume",
+	"پخش بیصدا":   "mute",
+	"پخش باصدا":   "unmute",
+	"پخش":         "play",
+	"کاهش سرعت":   "speeddown",
+	"افزایش سرعت": "speedup",
+	"کاهش صدا":    "volumedown",
+	"افزایش صدا":  "volumeup",
+	"جلو":         "seek",
+	"عقب":         "seekback",
+	"تنظیم صدا":   "setvolume",
+	"شروع کال":    "startcall",
+	"پایان کال":   "endcall",
+	"پایان کار":   "endcall",
+	"لینک کال":    "calllink",
 }
 
 var plainCommandAliasKeys = []string{
-	"پخش ویدیو",
-	"پینگ",
-	"راهنما",
-	"تنظیمات",
-	"پخش",
+	"توقف پخش",
 	"اتمام",
-	"مکث",
-	"ادامه",
-	"بعدی",
-	"لیست",
+	"مکث پلیر",
+	"ازسرگیری",
+	"پخش بیصدا",
+	"پخش باصدا",
+	"پخش",
+	"کاهش سرعت",
+	"افزایش سرعت",
+	"کاهش صدا",
+	"افزایش صدا",
+	"جلو",
+	"عقب",
+	"تنظیم صدا",
+	"شروع کال",
+	"پایان کال",
+	"پایان کار",
+	"لینک کال",
 }
 
 func plainTextCommandHandler(m *telegram.NewMessage) error {
@@ -610,6 +655,7 @@ var cbHandlers = []CbHandlerDef{
 	{Pattern: "^restart:(bot|replay)$", Handler: restartConfirmHandler},
 	{Pattern: "^bcast_cancel$", Handler: broadcastCancelCB},
 	{Pattern: "^rtmp_stop$", Handler: rtmpStopCallbackHandler},
+	{Pattern: "^voicechat:(start|cancel)(:[A-Za-z0-9]+)?$", Handler: voiceChatConfirmCB},
 
 	{Pattern: `^room:-?\d+:\w+$`, Handler: roomHandle},
 	{Pattern: "progress", Handler: emptyCBHandler},
@@ -658,6 +704,8 @@ func Init(bot *telegram.Client, assistants *core.AssistantManager) {
 		a.Ntg.OnStreamEnd(streamEndHandler)
 	})
 
+	InitVoiceChatHandlers(assistants)
+
 	go MonitorRooms()
 
 	autoLeaveSvc.Start()
@@ -670,7 +718,7 @@ func Init(bot *telegram.Client, assistants *core.AssistantManager) {
 	cplayCommands := []string{
 		"/cfplay", "/vcplay", "/fvcplay",
 		"/cpause", "/cresume", "/cskip", "/cstop",
-		"/cmute", "/cunmute", "/cvolume", "/cseek", "/cseekback",
+		"/cmute", "/cunmute", "/cseek", "/cseekback",
 		"/cjump", "/cremove", "/cclear", "/cmove",
 		"/cspeed", "/creplay", "/cposition", "/cshuffle",
 		"/cloop", "/cqueue", "/creload",

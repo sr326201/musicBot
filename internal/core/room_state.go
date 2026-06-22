@@ -336,6 +336,20 @@ func (r *RoomState) StatusMsg() *telegram.NewMessage {
 	return r.statusMsg
 }
 
+func (r *RoomState) IsEnded() bool {
+	if r.IsDestroyed() {
+		return false
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return r.track != nil &&
+		r.position >= r.track.Duration &&
+		!r.playing &&
+		!r.paused
+}
+
 func (r *RoomState) GetData(k string) (bool, any) {
 	if r.IsDestroyed() {
 		return false, nil

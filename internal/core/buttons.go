@@ -118,6 +118,8 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) tg.ReplyMarkup {
 		duration = track.Duration
 	}
 
+	r.Parse()
+
 	progress := utils.GetProgressBar(r.Position(), duration)
 	progress = utils.FormatTime(
 		r.Position(),
@@ -126,9 +128,9 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) tg.ReplyMarkup {
 	)
 
 	if !queued {
-		btn.AddRow(
-			tg.Button.Data(progress, "progress"),
-		)
+		progressBtn := tg.Button.Data(progress, "progress")
+		progressBtn.Primary()
+		btn.AddRow(progressBtn)
 	}
 
 	currentSpeed := r.Speed()
@@ -149,33 +151,50 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) tg.ReplyMarkup {
 		toggleLabel, toggleAction = "▶️", "resume"
 	}
 
+	btn.AddRow(
+		tg.Button.Data("⏹️", prefix+"stop"),
+		tg.Button.Data(toggleLabel, prefix+toggleAction),
+		tg.Button.Data("⏭️", prefix+"skip"),
+	)
+
+	btn.AddRow(
+		tg.Button.Data(fmt.Sprintf("⏪"), prefix+"speed_down"),
+		tg.Button.Data(fmt.Sprintf("%.2fx", currentSpeed), prefix+"speed_status"),
+		tg.Button.Data(fmt.Sprintf("⏩"), prefix+"speed_up"),
+	)
+
 	muteLabel, muteAction := "🔊", "mute"
 
 	if r.IsMuted() {
 		muteLabel, muteAction = "🔇", "unmute"
 	}
 
-	btn.AddRow(
-		tg.Button.Data("⏹️", prefix+"stop"),
-		tg.Button.Data(toggleLabel, prefix+toggleAction),
-		tg.Button.Data("⏩", prefix+"skip"),
+	muteBtn := tg.Button.Data(
+		fmt.Sprintf("%s %.0f%%", muteLabel, r.Volume()*100),
+		prefix+muteAction,
 	)
 
+	if r.IsMuted() {
+		muteBtn.Danger()
+	} else {
+		muteBtn.Success()
+	}
+
 	btn.AddRow(
-		tg.Button.Data(fmt.Sprintf("⏪ %.2fx", speedDown), prefix+"speed_down"),
-		tg.Button.Data(fmt.Sprintf("%.2fx", currentSpeed), prefix+"speed_status"),
-		tg.Button.Data(fmt.Sprintf("%.2fx ⏩", speedUp), prefix+"speed_up"),
+		tg.Button.Data("🔉", prefix+"volume_down_20"),
+		muteBtn,
+		tg.Button.Data("🔊", prefix+"volume_up_20"),
 	)
+
+	// btn.AddRow(
+	// 	tg.Button.Data("🔉", prefix+"volume_down_20"),
+	// 	tg.Button.Data(fmt.Sprintf("%s %.0f%%", muteLabel, r.Volume()*100), prefix+muteAction),
+	// 	tg.Button.Data("🔊", prefix+"volume_up_20"),
+	// )
 
 	// btn.AddRow(
 	// 	tg.Button.Data(muteLabel, prefix+muteAction),
 	// )
-
-	btn.AddRow(
-		tg.Button.Data("🔉 -20%", prefix+"volume_down_20"),
-		tg.Button.Data(fmt.Sprintf("%s %.0f%%", muteLabel, r.Volume()*100), prefix+muteAction),
-		tg.Button.Data("🔊 +20%", prefix+"volume_up_20"),
-	)
 
 	btn.AddRow(
 		tg.Button.Data("↩ 15s", prefix+"seekback_15"),
@@ -183,9 +202,16 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) tg.ReplyMarkup {
 		tg.Button.Data("15s ↪", prefix+"seek_15"),
 	)
 
-	btn.AddRow(
-		tg.Button.Data(F(chatID, "CLOSE_BTN"), "close"),
-	)
+	buttons := []tg.KeyboardButton{
+		// tg.Button.Data(F(chatID, "CLOSE_BTN"), "close"),
+		styleBtn(F(chatID, "CLOSE_BTN"), "close", "red"),
+	}
+
+	if track != nil && string(track.Source) != "Telegram" {
+		buttons = append(buttons, styleBtn(F(chatID, "SHARE_TRACK_BTN"), prefix+"share", "blue"))
+	}
+
+	btn.AddRow(buttons...)
 
 	return btn.Build()
 }
@@ -266,6 +292,24 @@ func GetRestartConfirmMarkup(chatID int64) *tg.ReplyInlineMarkup {
 		AddRow(
 			styleBtn(F(chatID, "restart_btn_bot"), "restart:bot", "red"),
 			styleBtn(F(chatID, "restart_btn_replay"), "restart:replay", "green"),
+		).
+		Build()
+}
+
+func GetVoiceChatCreateMarkup(chatID int64) *tg.ReplyInlineMarkup {
+	return GetVoiceChatResumeMarkup(chatID, "")
+}
+
+func GetVoiceChatResumeMarkup(chatID int64, pendingID string) *tg.ReplyInlineMarkup {
+	startData := "voicechat:start"
+	if pendingID != "" {
+		startData = "voicechat:start:" + pendingID
+	}
+
+	return tg.NewKeyboard().
+		AddRow(
+			styleBtn(F(chatID, "voice_chat_start_yes"), startData, ""),
+			styleBtn(F(chatID, "voice_chat_start_no"), "voicechat:cancel", "red"),
 		).
 		Build()
 }
