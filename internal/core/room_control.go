@@ -145,11 +145,41 @@ func (r *RoomState) Resume() (bool, error) {
 		return true, nil
 	}
 
-	resumed, err := r.Assistant.Ntg.Resume(r.ID)
-	if err != nil {
-		return false, err
-	}
+	//----------------- v1 -----------
+	// resumed, err := r.Assistant.Ntg.Resume(r.ID)
+	// if err != nil {
+	// 	return false, err
+	// }
 
+	// r.mu.Lock()
+	// r.paused = false
+	// r.playing = true
+	// r.updatedAt = time.Now().Unix()
+	// if r.scheduledTimers != nil {
+	// 	r.scheduledTimers.cancelScheduledResume()
+	// }
+	// r.mu.Unlock()
+
+	// // Rebuild pipeline with current speed/volume/position to apply
+	// // any changes made while paused
+	// if err := r.play(); err != nil {
+	// 	// Rollback: pause the stream again to maintain consistent state
+	// 	_, _ = r.Assistant.Ntg.Pause(r.ID)
+	// 	r.mu.Lock()
+	// 	r.paused = true
+	// 	r.mu.Unlock()
+	// 	return false, err
+	// }
+
+	// if wasMuted {
+	// 	_, _ = r.Assistant.Ntg.Mute(r.ID)
+	// }
+
+	// return resumed, nil
+	//------------------ v1 -----------------
+
+	// Ntg.Play پایپ‌لاین را از position فعلی با speed/volume جدید می‌سازد،
+	// پس نیازی به Ntg.Resume جدا نیست (تداخل ایجاد می‌کرد).
 	r.mu.Lock()
 	r.paused = false
 	r.playing = true
@@ -159,13 +189,12 @@ func (r *RoomState) Resume() (bool, error) {
 	}
 	r.mu.Unlock()
 
-	// Rebuild pipeline with current speed/volume/position to apply
-	// any changes made while paused
 	if err := r.play(); err != nil {
 		// Rollback: pause the stream again to maintain consistent state
 		_, _ = r.Assistant.Ntg.Pause(r.ID)
 		r.mu.Lock()
 		r.paused = true
+		r.playing = false
 		r.mu.Unlock()
 		return false, err
 	}
@@ -174,7 +203,7 @@ func (r *RoomState) Resume() (bool, error) {
 		_, _ = r.Assistant.Ntg.Mute(r.ID)
 	}
 
-	return resumed, nil
+	return true, nil
 }
 
 // Replay restarts the current track

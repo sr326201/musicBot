@@ -19,6 +19,7 @@ package modules
 
 import (
 	"context"
+	"time"
 
 	"github.com/Laky-64/gologging"
 	"github.com/amarnathcjd/gogram/telegram"
@@ -43,13 +44,9 @@ func closePlaybackPanel(r *core.RoomState, text string) {
 
 	if _, err := statusMsg.Edit(text, &telegram.SendOptions{
 		ParseMode:   "HTML",
-		ReplyMarkup: telegram.NewKeyboard().Build(),
+		ReplyMarkup: telegram.Button.Clear(),
 	}); err != nil {
 		if telegram.MatchError(err, "MESSAGE_NOT_MODIFIED") {
-			gologging.DebugF(
-				"Playback panel already has same finished state chat=%d",
-				statusMsg.ChannelID(),
-			)
 			return
 		}
 
@@ -59,6 +56,7 @@ func closePlaybackPanel(r *core.RoomState, text string) {
 			err,
 		)
 
+		// در صورت نامعتبر بودن markup، حداقل پنل قبلی را پاک کن
 		if _, delErr := statusMsg.Delete(); delErr != nil {
 			gologging.ErrorF(
 				"Playback panel delete failed chat=%d: %v",
@@ -130,13 +128,26 @@ func streamEndHandler(
 
 	// scheduleOldPlayingMessage(r)
 
+	// if ok, v := r.GetData("is_transitioning"); ok {
+	// 	if ok, v := v.(bool); ok && v {
+	// 		return
+	// 	}
+	// }
+
 	if ok, v := r.GetData("is_transitioning"); ok {
-		if ok, v := v.(bool); ok && v {
-			return
+		if b, _ := v.(bool); b {
+			return // اتاق در حال تغییر ترک است، دست نزن
 		}
+	}
+	if !r.IsActiveChat() {
+		if r.IsEnded() { // برگرداندن محافظت اصلی
+			finishPlaybackRoom(r, buildPlaybackFinishedText(r.ChatID, r))
+		}
+		return
 	}
 
 	r.SetData("is_transitioning", true)
+	r.SetData("transition_started_at", time.Now())
 	defer r.DeleteData("is_transitioning")
 
 	cid := r.ChatID
@@ -216,10 +227,44 @@ func streamEndHandler(
 		ReplyMarkup: core.GetPlayMarkup(cid, r, false),
 	}
 
-	if t.Artwork != "" && shouldShowThumb(chatID) {
+	if t.Artwork != "" && shouldShowThumb(cid) {
 		opt.Media = utils.CleanURL(t.Artwork)
 	}
 
-	statusMsg, _ = utils.EOR(statusMsg, msgText, opt)
-	r.SetStatusMsg(statusMsg)
+	if statusMsg != nil {
+		edited, err := utils.EOR(statusMsg, msgText, opt)
+		if err != nil {
+			gologging.ErrorF(
+				"Now playing panel update failed for chat=%d: %v",
+				cid,
+				err,
+			)
+
+			newMsg, sendErr := core.Bot.SendMessage(cid, msgText, opt)
+			if sendErr != nil {
+				gologging.ErrorF(
+					"Now playing fallback send failed for chat=%d: %v",
+					cid,
+					sendErr,
+				)
+			} else if newMsg != nil {
+				r.SetStatusMsg(newMsg)
+			}
+		} else if edited != nil {
+			r.SetStatusMsg(edited)
+		}
+	} else {
+		newMsg, err := core.Bot.SendMessage(cid, msgText, opt)
+		if err != nil {
+			gologging.ErrorF(
+				"Now playing send failed for chat=%d: %v",
+				cid,
+				err,
+			)
+		} else if newMsg != nil {
+			r.SetStatusMsg(newMsg)
+		}
+	}
+
+	schedulePlaybackPanelRefresh(cid, r, "playing", t.Requester)
 }

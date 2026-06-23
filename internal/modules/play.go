@@ -450,7 +450,7 @@ func ensureVoiceChatReady(
 	cs *core.ChatState,
 	pending *pendingPlay,
 ) error {
-	snap, err := cs.Snapshot(false)
+	snap, err := cs.Snapshot(true)
 	if err != nil {
 		gologging.ErrorF("Error checking voicechat state: %v", err)
 		utils.EOR(replyMsg, getErrorMessage(chatID, err))
@@ -460,7 +460,13 @@ func ensureVoiceChatReady(
 	if !snap.VoiceChatActive {
 		markup := core.GetVoiceChatCreateMarkup(chatID)
 
+		// if pending != nil {
+		// 	id := storePendingPlay(*pending)
+		// 	markup = core.GetVoiceChatResumeMarkup(chatID, id)
+		// }
+
 		if pending != nil {
+			pending.replyMsg = replyMsg
 			id := storePendingPlay(*pending)
 			markup = core.GetVoiceChatResumeMarkup(chatID, id)
 		}
@@ -603,11 +609,12 @@ func playTracksAndRespond(
 
 		filePath := ""
 		if i == 0 && (!isActive || force) {
-			path, err := downloadFirstTrack(m, replyMsg, chatID, mention, track)
+			path, newReplyMsg, err := downloadFirstTrack(m, replyMsg, chatID, mention, track)
 			if err != nil {
 				return tg.ErrEndGroup
 			}
 			filePath = path
+			replyMsg = newReplyMsg
 		}
 
 		if err := playTrackWithRetry(r, track, filePath, force && i == 0, replyMsg); err != nil {
@@ -635,7 +642,7 @@ func downloadFirstTrack(
 	chatID int64,
 	mention string,
 	track *state.Track,
-) (string, error) {
+) (string, *tg.NewMessage, error) {
 	title := utils.EscapeHTML(utils.ShortTitle(track.Title, 25))
 	var opt *tg.SendOptions
 	if track.Duration > 600 {
@@ -670,11 +677,11 @@ func downloadFirstTrack(
 				"error": utils.EscapeHTML(err.Error()),
 			}))
 		}
-		return "", err
+		return "", replyMsg, err
 	}
 
 	gologging.InfoF("Downloaded track to %s", path)
-	return path, nil
+	return path, replyMsg, nil
 }
 
 func finalizePlayReply(
@@ -807,6 +814,7 @@ func playTrackWithRetry(
 		if r.IsDestroyed() {
 			gologging.Info("Room destroyed during retry, aborting")
 			replyMsg.Delete()
+			utils.EOR(replyMsg, F(r.ID, "room_destroyed"))
 			return tg.ErrEndGroup
 		}
 

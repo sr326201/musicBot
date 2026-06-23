@@ -48,8 +48,36 @@ func MonitorRooms() {
 				// 	}
 				// 	return
 				// }
+
+				//v2
+				// if !r.IsActiveChat() {
+				// 	finishPlaybackRoom(r, buildPlaybackFinishedText(r.ChatID, r))
+				// 	return
+				// }
+
+				const transitionTimeout = 45 * time.Second
+
+				if ok, v := r.GetData("is_transitioning"); ok {
+					if b, _ := v.(bool); b {
+						if okStarted, started := r.GetData("transition_started_at"); okStarted {
+							if t, ok := started.(time.Time); ok && time.Since(t) > transitionTimeout {
+								r.DeleteData("transition_started_at")
+								r.DeleteData("is_transitioning")
+							} else {
+								return
+							}
+						} else {
+							r.SetData("transition_started_at", time.Now())
+							return
+						}
+					}
+				}
+
 				if !r.IsActiveChat() {
-					finishPlaybackRoom(r, buildPlaybackFinishedText(r.ChatID, r))
+					// فقط وقتی واقعاً ترک به انتها رسیده و چیزی در صف نیست، حذف کن
+					if r.IsEnded() {
+						finishPlaybackRoom(r, buildPlaybackFinishedText(r.ChatID, r))
+					}
 					return
 				}
 

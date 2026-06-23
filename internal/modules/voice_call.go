@@ -114,6 +114,9 @@ func startCallHandler(m *telegram.NewMessage) error {
 
 	if err := ass.Ntg.StartGroupCall(chatID); err != nil {
 		if errors.Is(err, ubot.ErrAlreadyInGroupCall) {
+			if cs, csErr := core.GetChatState(chatID); csErr == nil {
+				cs.SetVoiceChatActive(true)
+			}
 			replyAndDeleteAfter(m, "کال درحال اجراست ✅")
 			return telegram.ErrEndGroup
 		}
@@ -121,6 +124,10 @@ func startCallHandler(m *telegram.NewMessage) error {
 		gologging.ErrorF("failed to start voice call in chat %d: %v", chatID, err)
 		replyAndDeleteAfter(m, "شروع ویس‌کال ناموفق بود")
 		return telegram.ErrEndGroup
+	}
+
+	if cs, csErr := core.GetChatState(chatID); csErr == nil {
+		cs.SetVoiceChatActive(true)
 	}
 
 	reactToCommandMessage(m, "👍")
@@ -211,6 +218,10 @@ func voiceChatConfirmCB(cb *tg.CallbackQuery) error {
 		cb.Edit(msg)
 		cb.Answer(msg, opt)
 		return tg.ErrEndGroup
+	}
+
+	if cs, csErr := core.GetChatState(chatID); csErr == nil {
+		cs.SetVoiceChatActive(true)
 	}
 
 	if pendingID != "" {
