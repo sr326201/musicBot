@@ -644,16 +644,17 @@ func downloadFirstTrack(
 	track *state.Track,
 ) (string, *tg.NewMessage, error) {
 	title := utils.EscapeHTML(utils.ShortTitle(track.Title, 25))
-	var opt *tg.SendOptions
-	if track.Duration > 600 {
-		opt = &tg.SendOptions{ReplyMarkup: core.GetCancelKeyboard(chatID)}
-	}
 
-	replyMsg, _ = utils.EOR(
-		replyMsg,
-		F(chatID, "play_downloading_song", locales.Arg{"title": title}),
-		opt,
-	)
+	// var opt *tg.SendOptions
+	// if track.Duration > 600 {
+	// 	opt = &tg.SendOptions{ReplyMarkup: core.GetCancelKeyboard(chatID)}
+	// }
+
+	// replyMsg, _ = utils.EOR(
+	// 	replyMsg,
+	// 	F(chatID, "play_downloading_song", locales.Arg{"title": title}),
+	// 	opt,
+	// )
 
 	ctx, cancel := context.WithCancel(context.Background())
 	downloadCancels[chatID] = cancel
@@ -761,8 +762,8 @@ func buildSingleQueueReply(
 ) (string, *tg.SendOptions) {
 	title := utils.EscapeHTML(utils.ShortTitle(track.Title, 25))
 	opt := &tg.SendOptions{
-		ParseMode:   "HTML",
-		ReplyMarkup: core.GetPlayMarkup(chatID, r, true),
+		ParseMode: "HTML",
+		// ReplyMarkup: core.GetPlayMarkup(chatID, r, true),
 	}
 	if track.Artwork != "" && shouldShowThumb(chatID) {
 		opt.Media = utils.CleanURL(track.Artwork)

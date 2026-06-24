@@ -144,6 +144,12 @@ func (s *CleanScheduler) flushDue(deadline time.Time) {
 	}
 }
 
+// func scheduleOldPlayingMessage(r *core.RoomState) {
+// 	if m := r.StatusMsg(); m != nil {
+// 		cleanScheduler.schedule(m.ChannelID(), m.ID)
+// 	}
+// }
+
 func scheduleOldPlayingMessage(r *core.RoomState) {
 	if m := r.StatusMsg(); m != nil {
 		cleanScheduler.schedule(m.ChannelID(), m.ID)

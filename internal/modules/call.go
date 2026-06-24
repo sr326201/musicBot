@@ -139,12 +139,16 @@ func streamEndHandler(
 			return // اتاق در حال تغییر ترک است، دست نزن
 		}
 	}
-	if !r.IsActiveChat() {
-		if r.IsEnded() { // برگرداندن محافظت اصلی
-			finishPlaybackRoom(r, buildPlaybackFinishedText(r.ChatID, r))
-		}
-		return
-	}
+
+	// if !r.IsActiveChat() {
+	// 	if r.IsEnded() { // برگرداندن محافظت اصلی
+	// 		// finishPlaybackRoom(r, buildPlaybackFinishedText(r.ChatID, r))
+	// 		gologging.InfoF("im runnnnn !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	// 		closePlaybackPanel(r, buildPlaybackFinishedText(r.ChatID, r))
+	// 		scheduleOldPlayingMessage(r)
+	// 	}
+	// 	return
+	// }
 
 	r.SetData("is_transitioning", true)
 	r.SetData("transition_started_at", time.Now())
@@ -153,17 +157,41 @@ func streamEndHandler(
 	cid := r.ChatID
 	r.Parse()
 
+	// var t *state.Track
+	// var wasLooping bool
+	// if len(r.Queue()) == 0 && r.Loop() == 0 {
+	// 	// closePlaybackPanel(r, buildPlaybackFinishedText(cid, r))
+	// 	finishPlaybackRoom(r, buildPlaybackFinishedText(cid, r))
+	// 	// closePlaybackPanel(r, buildPlaybackFinishedText(r.ChatID, r))
+	// 	// scheduleOldPlayingMessage(r)
+	// 	// core.DeleteRoom(chatID)
+	// 	// core.Bot.SendMessage(cid, F(cid, "stream_queue_finished"))
+	// 	return
+	// } else {
+	// 	wasLooping = r.Loop() > 0
+	// 	t = r.NextTrack()
+
 	var t *state.Track
 	var wasLooping bool
+
+	// شرط را دوباره به 0 برمی‌گردانیم
 	if len(r.Queue()) == 0 && r.Loop() == 0 {
-		// closePlaybackPanel(r, buildPlaybackFinishedText(cid, r))
 		finishPlaybackRoom(r, buildPlaybackFinishedText(cid, r))
-		// core.DeleteRoom(chatID)
-		// core.Bot.SendMessage(cid, F(cid, "stream_queue_finished"))
 		return
 	} else {
+		// --- این بخش برای ادیت کردن پیام قبلی عالی کار کرد و نگهش می‌داریم ---
+		finishedText := buildPlaybackFinishedText(cid, r)
+		closePlaybackPanel(r, finishedText)
+		// -----------------------------------------------------------------
+
 		wasLooping = r.Loop() > 0
 		t = r.NextTrack()
+
+		// این محافظ را نگه می‌داریم تا در صورت باگ‌های پیش‌بینی نشده ربات خاموش نشود
+		if t == nil && !wasLooping {
+			core.DeleteRoom(r.ID)
+			return
+		}
 	}
 
 	statusText := F(cid, "stream_downloading_next")
