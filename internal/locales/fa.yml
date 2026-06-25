@@ -789,7 +789,10 @@ stop_confirm_muted: |
 
   Do you want to unmute or stop it completely?
 
-stopped: "⏹️ <b>پخش توسط {user} متوقف شد.</b>"
+stopped: |
+  ⏹️ <b>پخش توسط {user} متوقف شد.</b>
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
 
 shuffle_current_state: "🔀 Currently shuffle is <b>{state}</b> for this chat.\n\nUse <code>{cmd}</code> to toggle it."
 shuffle_updated: "🔀 Shuffle <b>{state}</b> by {user}."
@@ -949,7 +952,7 @@ voice_chat_create_confirm: |
 
 voice_chat_start_yes: "شروع کال"
 voice_chat_start_no: "نیاز نیست"
-voice_chat_started: "✅ ویس‌چت فعال شد. در حال آماده‌سازی پخش..."
+voice_chat_started: "✅ در حال آماده‌سازی پخش..."
 voice_chat_already_active: "✅ ویس‌چت از قبل فعال است."
 voice_chat_cancelled: "پخش لغو شد."
 voice_chat_start_failed: "❌ فعال‌سازی ویس‌چت ناموفق بود: {error}"
@@ -960,8 +963,8 @@ playback_finished: |
   ☕️ <b>پخش به اتمام رسید.</b>
 
   <b>• آهنگ:</b> <a href="{url}">{title}</a>
-  <b>• مدت:</b> {duration}
-  <b>• درخواستیه:</b> {by}
+  <b>• مدت:</b> <a>{duration}</a>
+  <b>• درخواستیه:</b> <a>{by}</a>
 
 playback_stopped: |
   پخش متوقف شد!

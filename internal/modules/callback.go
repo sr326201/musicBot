@@ -345,8 +345,19 @@ func handleStopAction(cb *tg.CallbackQuery, r *core.RoomState) error {
 	chatID := cb.ChannelID()
 	gologging.InfoF("Callback → stop, chatID=%d", chatID)
 
+	track := r.Track()
+	title := ""
+	duration := ""
+	if track != nil {
+		title = utils.EscapeHTML(utils.ShortTitle(track.Title, 35))
+		duration = utils.FormatDuration(track.Duration)
+	}
+
 	stoppedText := F(chatID, "stopped", locales.Arg{
-		"user": utils.MentionHTML(cb.Sender),
+		"user":     utils.MentionHTML(cb.Sender),
+		"title":    title,
+		"duration": duration,
+		"url":      track.URL,
 	})
 	cb.Answer(F(chatID, "cb_stop_success"), opt)
 	finishPlaybackRoom(r, stoppedText)

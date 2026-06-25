@@ -56,6 +56,9 @@ func cstopHandler(m *telegram.NewMessage) error {
 }
 
 func handleStop(m *telegram.NewMessage, cplay bool) error {
+
+	reactToCommandMessage(m, "👍")
+
 	r, err := getEffectiveRoom(m, cplay)
 	if err != nil {
 		m.Reply(err.Error())
@@ -87,9 +90,16 @@ func handleStop(m *telegram.NewMessage, cplay bool) error {
 	// 	}
 	// }
 
-	closePlaybackPanel(r, F(m.ChannelID(), "stopped", locales.Arg{
-		"user": utils.MentionHTML(m.Sender),
-	}))
+	track := r.Track()
+	title := utils.EscapeHTML(utils.ShortTitle(track.Title, 35))
+
+	// closePlaybackPanel(r, F(m.ChannelID(), "stopped", locales.Arg{
+	// 	"user":     utils.MentionHTML(m.Sender),
+	// 	"title":    title,
+	// 	"duration": utils.FormatDuration(track.Duration),
+	// 	"url":      track.URL,
+	// }))
+
 	// scheduleOldPlayingMessage(r)
 	// core.DeleteRoom(r.ID)
 	// m.Reply(
@@ -99,12 +109,17 @@ func handleStop(m *telegram.NewMessage, cplay bool) error {
 	// 		locales.Arg{"user": utils.MentionHTML(m.Sender)},
 	// 	),
 	// )
+
 	stoppedText := F(
 		m.ChannelID(),
 		"stopped",
-		locales.Arg{"user": utils.MentionHTML(m.Sender)},
-	)
+		locales.Arg{
+			"user":     utils.MentionHTML(m.Sender),
+			"title":    title,
+			"duration": utils.FormatDuration(track.Duration),
+			"url":      track.URL,
+		})
 	finishPlaybackRoom(r, stoppedText)
-	m.Reply(stoppedText)
+	// m.Reply(stoppedText)
 	return telegram.ErrEndGroup
 }

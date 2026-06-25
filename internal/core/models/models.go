@@ -33,6 +33,7 @@ type (
 		Requester string       // html mention or @username who requested this track
 		Video     bool         // whether this track will be played as video
 		Source    PlatformName // unique PlatformName
+		QueueMsg  telegram.Message
 	}
 	PlatformName string
 	// Platform defines a common contract for all supported platforms

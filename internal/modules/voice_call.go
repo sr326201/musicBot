@@ -100,11 +100,14 @@ func replyAndDeleteAfter(m *telegram.NewMessage, text string) {
 	go func() {
 		time.Sleep(5 * time.Second)
 		_, _ = msg.Delete()
+		_, _ = m.Delete()
 	}()
 }
 
 func startCallHandler(m *telegram.NewMessage) error {
 	chatID := m.ChannelID()
+
+	reactToCommandMessage(m, "👍")
 
 	ass, err := core.Assistants.ForChat(chatID)
 	if err != nil {
@@ -130,12 +133,13 @@ func startCallHandler(m *telegram.NewMessage) error {
 		cs.SetVoiceChatActive(true)
 	}
 
-	reactToCommandMessage(m, "👍")
 	return telegram.ErrEndGroup
 }
 
 func endCallHandler(m *telegram.NewMessage) error {
 	chatID := m.ChannelID()
+
+	reactToCommandMessage(m, "👍")
 
 	ass, err := core.Assistants.ForChat(chatID)
 	if err != nil {
@@ -156,13 +160,25 @@ func endCallHandler(m *telegram.NewMessage) error {
 		return telegram.ErrEndGroup
 	}
 
+	track := r.Track()
+	title := utils.EscapeHTML(utils.ShortTitle(track.Title, 35))
+
 	if ok && r != nil {
-		closePlaybackPanel(r, F(chatID, "playback_stopped"))
+
+		closePlaybackPanel(r, F(
+			chatID,
+			"stopped",
+			locales.Arg{
+				"user":     utils.MentionHTML(m.Sender),
+				"title":    title,
+				"duration": utils.FormatDuration(track.Duration),
+				"url":      track.URL,
+			},
+		))
 		scheduleOldPlayingMessage(r)
 		core.DeleteRoom(chatID)
 	}
 
-	reactToCommandMessage(m, "👍")
 	return telegram.ErrEndGroup
 }
 

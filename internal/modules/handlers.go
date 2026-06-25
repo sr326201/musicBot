@@ -556,8 +556,8 @@ var handlers = []MsgHandlerDef{
 var plainCommandAliases = map[string]string{
 	"توقف پخش":    "stop",
 	"اتمام":       "stop",
-	"مکث پلیر":    "pause",
-	"ازسرگیری":    "resume",
+	"مکث":         "pause",
+	"ادامه":       "resume",
 	"پخش بیصدا":   "mute",
 	"پخش باصدا":   "unmute",
 	"پخش":         "play",
@@ -570,7 +570,6 @@ var plainCommandAliases = map[string]string{
 	"تنظیم صدا":   "setvolume",
 	"شروع کال":    "startcall",
 	"پایان کال":   "endcall",
-	"پایان کار":   "endcall",
 	"لینک کال":    "calllink",
 }
 

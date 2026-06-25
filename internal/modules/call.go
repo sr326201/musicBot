@@ -55,15 +55,6 @@ func closePlaybackPanel(r *core.RoomState, text string) {
 			statusMsg.ChannelID(),
 			err,
 		)
-
-		// در صورت نامعتبر بودن markup، حداقل پنل قبلی را پاک کن
-		if _, delErr := statusMsg.Delete(); delErr != nil {
-			gologging.ErrorF(
-				"Playback panel delete failed chat=%d: %v",
-				statusMsg.ChannelID(),
-				delErr,
-			)
-		}
 	}
 }
 
