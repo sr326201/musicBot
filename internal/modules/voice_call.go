@@ -25,7 +25,7 @@ const (
 	voiceCallMaxSpeed   = 4.00
 )
 
-const playStickerPath = "public/AnimatedSticker.tgs"
+const playStickerPath = "public/search-bot.tgs"
 
 func sendPlaySticker(m *tg.NewMessage, caption string) (*tg.NewMessage, error) {
 	if m == nil || m.Client == nil {
@@ -107,8 +107,6 @@ func replyAndDeleteAfter(m *telegram.NewMessage, text string) {
 func startCallHandler(m *telegram.NewMessage) error {
 	chatID := m.ChannelID()
 
-	reactToCommandMessage(m, "👍")
-
 	ass, err := core.Assistants.ForChat(chatID)
 	if err != nil {
 		gologging.ErrorF("failed to get assistant for call start in chat %d: %v", chatID, err)
@@ -133,13 +131,12 @@ func startCallHandler(m *telegram.NewMessage) error {
 		cs.SetVoiceChatActive(true)
 	}
 
+	reactToCommandMessage(m, "👍")
 	return telegram.ErrEndGroup
 }
 
 func endCallHandler(m *telegram.NewMessage) error {
 	chatID := m.ChannelID()
-
-	reactToCommandMessage(m, "👍")
 
 	ass, err := core.Assistants.ForChat(chatID)
 	if err != nil {
@@ -159,6 +156,8 @@ func endCallHandler(m *telegram.NewMessage) error {
 		replyAndDeleteAfter(m, "بستن ویس‌کال ناموفق بود")
 		return telegram.ErrEndGroup
 	}
+
+	reactToCommandMessage(m, "👍")
 
 	track := r.Track()
 	title := utils.EscapeHTML(utils.ShortTitle(track.Title, 35))

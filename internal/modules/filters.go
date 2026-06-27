@@ -70,7 +70,8 @@ func filterChatAdmins(m *tg.NewMessage) bool {
 	}
 	isAdmin, err := utils.IsChatAdmin(m.Client, m.ChannelID(), m.SenderID())
 	if err != nil || !isAdmin {
-		m.Reply(F(m.ChannelID(), "only_admin"))
+		//for replay if not admin
+		// m.Reply(F(m.ChannelID(), "only_admin"))
 		return false
 	}
 	return true
@@ -83,7 +84,8 @@ func filterAuthUsers(m *tg.NewMessage) bool {
 
 	mode, err := database.GetAdminMode(m.ChannelID())
 	if err == nil && mode == database.AdminModeAdminsOnly {
-		m.Reply(F(m.ChannelID(), "only_admin"))
+		//for replay if not admin
+		// m.Reply(F(m.ChannelID(), "only_admin"))
 	} else {
 		m.Reply(F(m.ChannelID(), "only_admin_or_auth"))
 	}

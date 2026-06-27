@@ -4,11 +4,11 @@ name: "🇮🇷 فارسی"
 CONFIRM_RESUME_BTN: "▶️ ادامه"
 CONFIRM_UNMUTE_BTN: "🔊 بدون صدا"
 CONFIRM_STOP_BTN: "⏹️ توقف"
-ADD_ME_BTN: "⚡ من را به گروهت اضافه کن"
+ADD_ME_BTN: "ادم کن تو گروهت"
 BROADCAST_CANCEL_BTN: "🚫 لغو ارسال همگانی"
 CLOSE_BTN: "بستن"
 DOWNLOAD_CANCEL_BTN: "🚦 لغو دانلود"
-GC_HELP_BTN: "📒 فرمان‌ها"
+GC_HELP_BTN: "📒"
 
 START_HELP_BTN: "❓ راهنما و فرمان‌ها"
 
@@ -28,6 +28,29 @@ invalid_bool: "⚠️ <b>مقدار نامعتبر است.</b>\nاز 'enable' ی
 
 active_chats_info: "📊 <b>چت‌های فعال:</b>\n\nتعداد <i>{count}</i> چت فعال در کل سیستم ربات وجود دارد."
 active_chats_info_with_broken: "📊 <b>چت‌های فعال:</b>\n\nتعداد <i>{count}</i> چت فعال در کل سیستم ربات وجود دارد، اما <i>{broken}</i> تای آن‌ها ممکن است در نمایش درست مشکل داشته باشند."
+
+wait_approval: "⚠️ **این گروه هنوز توسط مدیریت تایید نشده است.**\nلطفاً منتظر بمانید تا گروه شما بررسی و تایید شود."
+approval_usage_approve: "❌ **روش استفاده:**\n`/approve [آیدی عددی یا یوزرنیم گروه]`"
+approval_usage_unapprove: "❌ **روش استفاده:**\n`/unapprove [آیدی عددی یا یوزرنیم گروه]`"
+approval_invalid_chat_identifier: "❌ چت مورد نظر یافت نشد یا شناسه نامعتبر است.\n**خطا:** {error}"
+approval_approve_chat_success: "✅ گروه ` {id} ` با موفقیت تایید شد و ربات در آن فعال گردید."
+approval_unapprove_chat_fail: "❌ لغو تاییدیه گروه با خطا مواجه شد:\n{error}"
+approval_unapprove_chat_success: "🔓 تاییدیه گروه ` {id} ` با موفقیت لغو شد."
+approval_list_title: "📋 **لیست گروه‌های تایید شده توسط مدیریت:**"
+approval_fetch_chats_fail: "❌ خطا در دریافت لیست گروه‌های تایید شده:\n{error}"
+
+allgroups_empty: "📊 **ربات هنوز در هیچ گروهی عضو نشده است یا دیتابیس خالی است.**"
+allgroups_title: "📊 **لیست کل گروه‌های ربات:**\n\n🟢 = تایید شده | 🔴 = در انتظار تایید"
+
+approval_group_activated: "🎉 **ربات با موفقیت در این گروه فعال شد!**\n\n⚙️ هم‌اکنون تمامی قابلیت‌ها، دستورات و سیستم پخش موزیک/ویدیو برای شما در دسترس است.\n💡 برای دریافت راهنمایی پیوی پیام بده."
+
+approval_nav_prev: "⬅️ قبلی"
+approval_nav_next: "بعدی ➡️"
+approval_nav_page: "صفحه {page}/{total}"
+approval_toggle_removed: "🔴 گروه از لیست تایید شده‌ها حذف شد"
+approval_toggle_added: "🟢 گروه با موفقیت تایید شد"
+approval_error_loading: "❌ خطا در بارگذاری صفحه"
+approval_mgmt_denied: "⛔️ شما دسترسی مدیریت این بخش را ندارید!"
 
 adminmode_help: |
   🛡️ <b>حالت فرمان‌های ادمین</b>
@@ -62,7 +85,7 @@ addauth_success_with_count: "✅ {user} اضافه شد.\nحالا {count}/{limi
 addauth_success: "✅ کاربر {user} با موفقیت به لیست مجازها اضافه شد."
 
 # 🤖 Bot Added to Chat
-bot_added_normal: "🎵 ممنون که من را اضافه کردی! برای شروع پخش موسیقی از /play [song] استفاده کن."
+bot_added_normal: "آقا ما اومدیم بلند نشید ."
 
 # 🛠️ Bot Added During Maintenance
 bot_added_maintenance: "⚠️ الان دارم تعمیر و نگهداری می‌شم و به‌زودی برمی‌گردم. ممنون از صبرت! ⏰"
@@ -70,12 +93,9 @@ maint_reason_generic: "<i>📝 دلیل: {reason}</i>"
 
 # ⚠️ Bot Demotion
 bot_demotion_goodbye: |
-  <b>⚠️ دسترسی از دست رفت</b>
+  <b>منو از ادمینی در میاری ؟ </b>
+  <b>خدافظ بابا!</b>
 
-  من <b>از ادمینی پایین آورده شدم</b> و دیگه نمی‌تونم کارهام را انجام بدم.
-  بدون دسترسی درست نمی‌تونم اینجا کار کنم، پس <i>الان از چت می‌رم</i>.
-
-  <b>خداحافظ 👋</b>
 broadcast_already_running: "⚠️ یک ارسال همگانی از قبل در حال اجراست.\n\nلطفاً صبر کن کامل شود یا اول با این‌ها لغوش کن:\n• <code>/broadcast -cancel</code>\n• یا روی دکمه لغو در پیام پیشرفت بزن"
 broadcast_parse_failed: "❌ تحلیل فرمان ارسال همگانی ناموفق بود:\n<code>{error}</code>"
 broadcast_no_content: "⚠️ محتوایی برای ارسال همگانی داده نشده.\n\n<b>نحوه استفاده:</b> <code>{cmd} [متن یا پاسخ به پیام]</code>\n\n<b>مثال:</b>\n<code>{cmd} سلام بچه‌ها!</code>"
@@ -179,14 +199,20 @@ share_track_text: |
   <b>• مدت:</b> {duration}
 
 # Skip callback
-cb_skip_queue_empty: "⏹️ پخش متوقف شد — چیزی برا پخش نیست."
+cb_skip_queue_empty: "⏹️ چیزی برا پخش نیست"
+
 cb_skip_download_failed: "❌ Failed to download next track."
 cb_skip_play_failed: "❌ Failed to play next track."
-cb_skip_success: "⏭️ آهنگ skipped."
-cb_skip_edited: "⏭️ Skipped by {user}"
+cb_skip_success: "⏭️ داریم میریم بعدی"
+cb_skip_edited: |
+  ➡️ <b>اسکیپ شد</b>
+
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• درخواستیه:</b> {by}
 
 # Stop callback
-cb_stop_success: "⏹️ پخش stopped."
+cb_stop_success: "⏹️ پخش استوپ شد."
 
 # Mute/Unmute callback
 cb_mute_success: "میوته 🔇"
@@ -242,6 +268,10 @@ bug_report_format: |
   <pre>{report}</pre>
 clear_no_active: "⚠️ <b>هیچ پخش فعالی یا صفی برای پاک کردن وجود ندارد.</b>"
 clear_success: "✅ صف توسط {user} پاک شد.\n<i>قبل از اضافه کردن آهنگ‌های جدید، می‌تونی با <code>/{cmd}</code> آن را برگردانی</i>"
+
+prem: |
+  <emoji id="6134147226441614765">😒</emoji> ɪᴛ ᴡᴀs ᴀ ɢʀᴇᴀᴛ ᴊᴏᴜʀɴᴇʏ ᴡɪᴛʜ ʏ'ᴀʟʟ, ᴛʜᴀɴᴋs ғᴏʀ ᴇᴠᴇʀʏᴛʜɪɴɢ... 
+  <emoji id="6134366475932141065">😗</emoji> <emoji id="5231492061718390437">❄️</emoji> ʜᴀᴘᴘʏ ɴᴇᴡ ʏᴇᴀʀ ᴇᴠᴇ<emoji id="5231492061718390437">❄️</emoji>
 
 err_assistant_banned: |
   <b>🚫 دسترسی دستیار محدود شد</b>
@@ -315,14 +345,14 @@ err_fetch_tracks: |
   Please try again later.
 
 err_download_internal: |
-  ⚠️ <b>Download failed</b> due to an unexpected internal error.
-  Please try again later.
+  نت مشکل داره انگار دانلود نشد!
+  یه تسته دیگه بزن...
 
 flood_seconds: "Don't spam 🤫"
 flood_minutes: "⏳ لطفاً {duration} دقیقه صبر کن تا دوباره بتوانی از این فرمان استفاده کنی."
 
-help_private_only: "🤖 سلام! برای راهنما و فرمان‌های ربات، لطفاً مستقیم در پیوی به من پیام بده — در چت خصوصی سریع‌تر جواب می‌دم!"
-help_main: "📚 <b>منوی راهنما</b>\n\nیکی از دسته‌های زیر را انتخاب کن تا فرمان‌ها و روش استفاده‌شان را برای مدیریت، کنترل و شخصی‌سازی ربات ببینی."
+help_private_only: "👋 راهنما فقط توی پیوی در دسترسه؛"
+help_main: "📚 یه بخش رو انتخاب کن تا دستوراتش رو ببینی."
 
 jump_no_active: "⚠️ آهنگ فعالی برای پریدن داخلش وجود ندارد."
 jump_usage: "⚠️ لطفاً تعداد ثانیه را وارد کن.\nمثال: <code>{cmd} 120</code>"
@@ -461,6 +491,9 @@ nothumb_updated: "🖼️ Thumbnail display has been {action}."
 cmddelete_status: "🗑️ <b>Command Delete Control</b>\n\nWhen enabled, I will automatically delete command messages.\nنحوه استفاده: {cmd} [enable|disable]\nCurrent state: {action}"
 cmddelete_updated: "🗑️ Command deletion has been {action}."
 
+only_admin_or_auth_cb_hes: "دسترسی فقط برای ادمین‌ها و کاربران مجاز است."
+only_admin_cb_hes: "ادمین فقط میتونه این اکشنو انجام بده."
+
 only_admin: "⚠️ <b>Permission Denied!</b>\nOnly <b>admins</b> can control these actions. You can still play songs 🎵.\n\nIf you believe you are an admin, please use /reload to refresh your admin status."
 only_admin_cb: "⚠️ Only admins can do these actions."
 only_admin_or_auth: "⚠️ <b>Access Denied</b>\nOnly <b>admins</b> or <b>authorized users</b> can control these actions.\n\nIf you recently became an admin, use /reload to refresh your permissions."
@@ -508,7 +541,7 @@ play_failed: "❌ Failed to play\nError: {error}"
 play_unable: "<b> ❌ Unable to Play </b>\n\n<i>Please <b>restart the voice</b> chat.</i>"
 play_downloading_song: '📥 Downloading song "{title}"'
 play_download_canceled: "⚠️ Download canceled by {user}."
-play_already_in_queue: "✅ <b>آهنگ already added!</b>\n\n<i>{title}</i> is already playing or in the queue."
+play_already_in_queue: "✅ <b>داره پخش میشه</b>\n\n<i>{title}</i>"
 play_added_multiple_header: "➕ <b>{count} آهنگ اضافه شد</b> by {user}"
 play_queue_limit_hint: "⚠️ <i>سقف صف پر شده — some tracks were skipped.</i>"
 play_queue_view_hint: "<i>Use /queue to view full list.</i>"
@@ -887,11 +920,27 @@ spt_result: |
   Download: <code>{dl_mbps} Mbps</code>
   Upload: <code>{ul_mbps} Mbps</code>
 start_private: |
-  سلام {user}، من {bot} هستم.
+  هی {user}! 👋
 
-  من یک ربات استریم تلگرام با چند قابلیت کاربردی‌ام. از پلتفرم‌هایی مثل YouTube، Spotify، JioSaavn و SoundCloud پشتیبانی می‌کنم.
+  من {bot} هستم؛ ربات استریم .
 
-  با خیال راحت من را به گروه‌هات اضافه کن.
+  🎵 YouTube
+  🎧 Spotify
+  ☁️ SoundCloud
+  🎼 JioSaavn
+start_private_sudo: |
+  سلام {user} ⚡️
+
+  سطح دسترسی: <b>SUDO</b>
+
+  پنل مدیریتی، ابزارهای نظارتی و دستورات پیشرفته برای شما فعال هستند.
+
+start_private_owner: |
+  خوش اومدی رئیس. 👑
+
+  <b>Owner Mode</b> فعاله.
+  کنترل کامل {bot} در اختیار شماست؛ از مدیریت تنظیمات گرفته تا کنترل تمام ماژول‌ها.
+
 start_group: |
   <b>ربات در این گروه فعاله.</b>
 stream_channelid_fail: |

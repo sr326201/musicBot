@@ -23,6 +23,7 @@ import (
 	"html"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Laky-64/gologging"
@@ -34,6 +35,11 @@ import (
 	"main/internal/database"
 	"main/internal/locales"
 	"main/internal/utils"
+)
+
+var (
+	warnedChats   = make(map[int64]bool)
+	warnedChatsMu sync.Mutex
 )
 
 var downloadCancels = make(map[int64]func())
@@ -75,11 +81,8 @@ func canBypassMaintenence(userID int64) bool {
 func shouldShowThumb(chatID int64) bool {
 	noThumb, err := database.ThumbnailsDisabled(chatID)
 	if err != nil {
-		// On error, default to showing thumbnails
 		return true
 	}
-	// ThumbnailsDisabled = true means DON'T show thumb
-	// So we return the inverse
 	return !noThumb
 }
 
@@ -294,6 +297,36 @@ func blacklistMessageMiddleware(next tg.MessageHandler) tg.MessageHandler {
 	}
 }
 
+func groupApprovalMiddleware(next tg.MessageHandler) tg.MessageHandler {
+	return func(m *tg.NewMessage) error {
+		if m.IsPrivate() {
+			return next(m)
+		}
+
+		if isOwnerOrSudo(m.SenderID()) {
+			return next(m)
+		}
+
+		approved, _ := database.IsApprovedChat(m.ChannelID())
+		if approved {
+			return next(m)
+		}
+
+		warnedChatsMu.Lock()
+		alreadyWarned := warnedChats[m.ChannelID()]
+		if !alreadyWarned {
+			warnedChats[m.ChannelID()] = true
+		}
+		warnedChatsMu.Unlock()
+
+		if !alreadyWarned {
+			m.Reply(F(m.ChannelID(), "wait_approval"))
+		}
+
+		return tg.ErrEndGroup
+	}
+}
+
 func WithBlacklistCallback(
 	handler func(*tg.CallbackQuery) error,
 ) func(*tg.CallbackQuery) error {
@@ -306,6 +339,24 @@ func WithBlacklistCallback(
 				return handler(cb)
 			}
 			return tg.ErrEndGroup
+		}
+		return handler(cb)
+	}
+}
+
+func WithApprovalCallback(
+	handler func(*tg.CallbackQuery) error,
+) func(*tg.CallbackQuery) error {
+	return func(cb *tg.CallbackQuery) error {
+		if isOwnerOrSudo(cb.SenderID) {
+			return handler(cb)
+		}
+
+		if cb.ChannelID() != 0 && cb.ChannelID() != cb.SenderID {
+			approved, _ := database.IsApprovedChat(cb.ChannelID())
+			if !approved {
+				return tg.ErrEndGroup
+			}
 		}
 		return handler(cb)
 	}

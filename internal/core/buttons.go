@@ -24,6 +24,7 @@ import (
 	tg "github.com/amarnathcjd/gogram/telegram"
 
 	"main/internal/config"
+	"main/internal/database"
 	"main/internal/locales"
 	"main/internal/utils"
 )
@@ -163,10 +164,10 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) tg.ReplyMarkup {
 		tg.Button.Data(fmt.Sprintf("⏩"), prefix+"speed_up"),
 	)
 
-	muteLabel, muteAction := "🔊", "mute"
+	muteLabel, muteAction := "", "mute"
 
 	if r.IsMuted() {
-		muteLabel, muteAction = "🔇", "unmute"
+		muteLabel, muteAction = "", "unmute"
 	}
 
 	muteBtn := tg.Button.Data(
@@ -251,32 +252,47 @@ func GetStartMarkup(chatID int64) tg.ReplyMarkup {
 		Build()
 }
 
-func GetHelpKeyboard(chatID int64) *tg.ReplyInlineMarkup {
+func ApproveMarkup(chatID int64) *tg.ReplyInlineMarkup {
 	return tg.NewKeyboard().
 		AddRow(
-			tg.Button.Data(
-				F(chatID, "HELP_ADMINS_BTN"),
-				"help:admins",
-			),
-			tg.Button.Data(
-				F(chatID, "HELP_PUBLIC_BTN"),
-				"help:public",
-			),
-		).
-		AddRow(
-			tg.Button.Data(
-				F(chatID, "HELP_OWNER_BTN"),
-				"help:owner",
-			),
-			tg.Button.Data(
-				F(chatID, "HELP_SUDOERS_BTN"),
-				"help:sudoers",
-			),
-		).
-		AddRow(
-			styleBtn(F(chatID, "BACK_BTN"), "start", ""),
+			tg.Button.Data("✅ تایید گروه", fmt.Sprintf("approve_%d", chatID)),
+			tg.Button.Data("❌ رد و خروج", fmt.Sprintf("deny_%d", chatID)),
 		).
 		Build()
+}
+
+func GetHelpKeyboard(chatID int64, userID int64, c *tg.Client) *tg.ReplyInlineMarkup {
+	kb := tg.NewKeyboard()
+
+	// ردیف اول: راهنمای عمومی و ادمین
+	row1 := []tg.KeyboardButton{
+		tg.Button.Data(F(chatID, "HELP_PUBLIC_BTN"), "help:public"),
+	}
+
+	isAdmin, _ := utils.IsChatAdmin(c, chatID, userID)
+	isSudo, _ := database.IsSudo(userID)
+	isOwner := (config.OwnerID != 0 && userID == config.OwnerID)
+
+	if isAdmin || isSudo || isOwner {
+		row1 = append(row1, tg.Button.Data(F(chatID, "HELP_ADMINS_BTN"), "help:admins"))
+	}
+	kb.AddRow(row1...)
+
+	// ردیف دوم: راهنمای سودو و مالک
+	row2 := []tg.KeyboardButton{}
+	if isSudo || isOwner {
+		row2 = append(row2, tg.Button.Data(F(chatID, "HELP_SUDOERS_BTN"), "help:sudoers"))
+	}
+	if isOwner {
+		row2 = append(row2, tg.Button.Data(F(chatID, "HELP_OWNER_BTN"), "help:owner"))
+	}
+
+	if len(row2) > 0 {
+		kb.AddRow(row2...)
+	}
+
+	kb.AddRow(styleBtn(F(chatID, "BACK_BTN"), "start", ""))
+	return kb.Build()
 }
 
 func GetBackKeyboard(chatID int64) *tg.ReplyInlineMarkup {

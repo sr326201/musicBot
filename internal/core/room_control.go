@@ -512,7 +512,18 @@ func (r *RoomState) play() error {
 	volume := r.volume
 	r.mu.RUnlock()
 	desc := getMediaDescription(r.filePath, r.position, r.speed, volume, r.track.Video)
-	return r.Assistant.Ntg.Play(r.ID, desc)
+	err := r.Assistant.Ntg.Play(r.ID, desc)
+	if err != nil {
+		gologging.ErrorF("Ntg.Play returned error: %s", err.Error())
+	} else {
+		gologging.Info("Ntg.Play returned success (nil)")
+		if calls := r.Assistant.Ntg.Calls(); calls != nil {
+			if ci, ok := calls[r.ID]; ok {
+				gologging.InfoF("Stream status after Play(): %v", ci.Playback)
+			}
+		}
+	}
+	return err
 }
 
 // SetVolume adjusts playback volume. It does not affect pause/mute state.

@@ -18,11 +18,13 @@
 package modules
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/Laky-64/gologging"
 	"github.com/amarnathcjd/gogram/telegram"
+	tg "github.com/amarnathcjd/gogram/telegram"
 
 	"main/internal/config"
 	"main/internal/core"
@@ -116,6 +118,28 @@ func handleParticipantUpdate(p *telegram.ParticipantUpdate) error {
 		(newStatus == "member" || newStatus == "administrator" || newStatus == "creator"):
 
 		handleSudoJoin(p, chatID)
+	}
+
+	if p.New != nil {
+		botID := p.Client.Me().ID
+
+		if p.UserID() == botID {
+			chat, err := p.Client.GetChat(chatID)
+			groupName := "نامعلوم"
+			if err == nil && chat.Title != "" {
+				groupName = chat.Title
+			}
+
+			text := fmt.Sprintf("🚨 **ربات به گروه جدیدی اضافه شد!**\n\n👥 **نام گروه:** %s\n🆔 **آیدی گروه:** <code>%d</code>\n\nوضعیت: در انتظار تایید مدیریت...", utils.EscapeHTML(groupName), chatID)
+
+			_, err = p.Client.SendMessage(config.OwnerID, text, &tg.SendOptions{
+				ParseMode:   "HTML",
+				ReplyMarkup: core.ApproveMarkup(chatID),
+			})
+			if err != nil {
+				gologging.ErrorF("Failed to send join notification to owner: %v", err)
+			}
+		}
 	}
 
 	if state != nil && userID == state.Assistant.Self.ID {

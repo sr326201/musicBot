@@ -25,15 +25,16 @@ import (
 
 type (
 	Track struct {
-		ID        string       // track unique id
-		Title     string       // title
-		Duration  int          // track duration in seconds
-		Artwork   string       // thumbnail url of the track
-		URL       string       // track url
-		Requester string       // html mention or @username who requested this track
-		Video     bool         // whether this track will be played as video
-		Source    PlatformName // unique PlatformName
-		QueueMsg  telegram.Message
+		ID          string // track unique id
+		Title       string // title
+		Duration    int    // track duration in seconds
+		Artwork     string // thumbnail url of the track
+		URL         string // track url
+		Requester   string // html mention or @username who requested this track
+		RequesterID int64
+		Video       bool         // whether this track will be played as video
+		Source      PlatformName // unique PlatformName
+		QueueMsg    telegram.Message
 	}
 	PlatformName string
 	// Platform defines a common contract for all supported platforms

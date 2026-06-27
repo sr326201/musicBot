@@ -54,14 +54,14 @@ func (ctx *Context) connectCall(
 			return err
 		}
 
-		err = ctx.binding.SetStreamSources(
-			chatId,
-			ntgcalls.CaptureStream,
-			mediaDescription,
-		)
-		if err != nil {
-			return err
-		}
+		// err = ctx.binding.SetStreamSources(
+		// 	chatId,
+		// 	ntgcalls.CaptureStream,
+		// 	mediaDescription,
+		// )
+		// if err != nil {
+		// 	return err
+		// }
 
 		ctx.p2pConfigsMutex.Lock()
 		dhConfig := ntgcalls.DhConfig{
@@ -180,7 +180,6 @@ func (ctx *Context) connectCall(
 		if err != nil {
 			return err
 		}
-
 	} else {
 		// Group call handling
 		var err error
@@ -190,11 +189,11 @@ func (ctx *Context) connectCall(
 			return err
 		}
 
-		err = ctx.binding.SetStreamSources(chatId, ntgcalls.CaptureStream, mediaDescription)
-		if err != nil {
-			ctx.binding.Stop(chatId)
-			return err
-		}
+		// err = ctx.binding.SetStreamSources(chatId, ntgcalls.CaptureStream, mediaDescription)
+		// if err != nil {
+		// 	ctx.binding.Stop(chatId)
+		// 	return err
+		// }
 
 		inputGroupCall, err := ctx.GetInputGroupCall(chatId)
 		if err != nil {
@@ -248,6 +247,12 @@ func (ctx *Context) connectCall(
 			}
 			ctx.pendingConnectionsMutex.Unlock()
 		}
+	}
+
+	err := ctx.binding.SetStreamSources(chatId, ntgcalls.CaptureStream, mediaDescription)
+	if err != nil {
+		ctx.binding.Stop(chatId)
+		return err
 	}
 
 	select {

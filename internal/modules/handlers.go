@@ -21,8 +21,11 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/amarnathcjd/gogram/telegram"
+	tg "github.com/amarnathcjd/gogram/telegram"
 
 	"main/internal/config"
 	"main/internal/core"
@@ -39,6 +42,16 @@ type CbHandlerDef struct {
 	Handler telegram.CallbackHandler
 	Filters []telegram.Filter
 }
+
+type userState struct {
+	LastTime  time.Time
+	LastMsgID int32
+}
+
+var (
+	spamMutex sync.Mutex
+	userStats = make(map[int64]userState)
+)
 
 func plainTextCommandMiddleware(next telegram.MessageHandler) telegram.MessageHandler {
 	return func(m *telegram.NewMessage) error {
@@ -60,6 +73,42 @@ func plainTextCommandMiddleware(next telegram.MessageHandler) telegram.MessageHa
 	}
 }
 
+func antiSpamMiddleware(next telegram.MessageHandler) telegram.MessageHandler {
+	return func(m *telegram.NewMessage) error {
+		if m.IsService() {
+			return next(m)
+		}
+
+		userID := m.SenderID()
+		msgID := m.ID
+
+		now := time.Now()
+
+		spamMutex.Lock()
+		state, exists := userStats[userID]
+
+		if exists {
+			diff := now.Sub(state.LastTime)
+
+			if diff < 3*time.Second && state.LastMsgID != msgID {
+				spamMutex.Unlock()
+				fmt.Printf("[AntiSpam] 🚨 DROPPING spam from %d (Cooldown: %v)\n", userID, diff)
+
+				return tg.ErrEndGroup
+			}
+		}
+
+		userStats[userID] = userState{
+			LastTime:  now,
+			LastMsgID: msgID,
+		}
+		spamMutex.Unlock()
+
+		// fmt.Printf("[AntiSpam] ✅ PASSING message %d from %d to next handlers\n", msgID, userID)
+		return next(m)
+	}
+}
+
 var handlers = []MsgHandlerDef{
 	{Pattern: "json", Handler: jsonHandle},
 	{
@@ -71,6 +120,11 @@ var handlers = []MsgHandlerDef{
 		Pattern: "ev",
 		Handler: evalCommandHandler,
 		Filters: []telegram.Filter{ownerFilter},
+	},
+	{
+		Pattern: "robot",
+		Handler: sayHandler,
+		Filters: []telegram.Filter{ignoreChannelFilter},
 	},
 	{
 		Pattern: "(bash|sh)",
@@ -170,7 +224,7 @@ var handlers = []MsgHandlerDef{
 	{
 		Pattern: "ping",
 		Handler: pingHandler,
-		Filters: []telegram.Filter{ignoreChannelFilter},
+		Filters: []telegram.Filter{sudoOnlyFilter, ignoreChannelFilter},
 	},
 	{
 		Pattern: "start",
@@ -551,32 +605,81 @@ var handlers = []MsgHandlerDef{
 		Handler: privacyHandler,
 		Filters: []telegram.Filter{ignoreChannelFilter},
 	},
+	// {
+	// 	Pattern: "(approve|approvechat)",
+	// 	Handler: handleApproveChat,
+	// 	Filters: []telegram.Filter{ownerFilter, ignoreChannelFilter}, // فیلتر سودو بودن کاربر را بر اساس پروژه خودت قرار بده
+	// },
+	// {
+	// 	Pattern: "(unapprove|unapprovechat)",
+	// 	Handler: handleUnapproveChat,
+	// 	Filters: []telegram.Filter{ownerFilter, ignoreChannelFilter},
+	// },
+	// {
+	// 	Pattern: "(approved|approvedchats)",
+	// 	Handler: handleApprovedChats,
+	// 	Filters: []telegram.Filter{ownerFilter, ignoreChannelFilter},
+	// },
+	{
+		Pattern: "(allgroups|chats)",
+		Handler: handleAllGroups,
+		Filters: []telegram.Filter{ownerFilter, ignoreChannelFilter},
+	},
 }
 
 var plainCommandAliases = map[string]string{
-	"توقف پخش":    "stop",
-	"اتمام":       "stop",
-	"مکث":         "pause",
-	"ادامه":       "resume",
-	"پخش بیصدا":   "mute",
-	"پخش باصدا":   "unmute",
-	"پخش":         "play",
-	"کاهش سرعت":   "speeddown",
-	"افزایش سرعت": "speedup",
-	"کاهش صدا":    "volumedown",
-	"افزایش صدا":  "volumeup",
-	"جلو":         "seek",
-	"عقب":         "seekback",
-	"تنظیم صدا":   "setvolume",
-	"شروع کال":    "startcall",
-	"پایان کال":   "endcall",
-	"لینک کال":    "calllink",
+	"توقف پخش":     "stop",
+	"اتمام":        "stop",
+	"پایان کار":    "stop",
+	"مکث":          "pause",
+	"مکث پلیر":     "pause",
+	"ادامه":        "resume",
+	"ازسرگیری":     "resume",
+	"پخش بیصدا":    "mute",
+	"پخش باصدا":    "unmute",
+	"پخش":          "play",
+	"کاهش سرعت":    "speeddown",
+	"افزایش سرعت":  "speedup",
+	"کاهش صدا":     "volumedown",
+	"افزایش صدا":   "volumeup",
+	"جلو":          "seek",
+	"عقب":          "seekback",
+	"تنظیم صدا":    "setvolume",
+	"شروع کال":     "startcall",
+	"پایان کال":    "endcall",
+	"لینک کال":     "calllink",
+	"ربات":         "robot",
+	"رد کردن":      "skip",
+	"بعدی":         "skip",
+	"پاکسازی صف":   "clear",
+	"پاک کردن":     "clear",
+	"حذف از صف":    "remove",
+	"حذف":          "remove",
+	"تصادفی":       "shuffle",
+	"ترتیب تصادفی": "shuffle",
+	"تکرار":        "loop",
+	"حلقه":         "loop",
+	"صف":           "queue",
+	"لیست پخش":     "queue",
+	"وضعیت":        "position",
+	"جایگاه":       "position",
+	"راهنما":       "help",
+	"پینگ":         "ping",
+	"تست سرعت":     "ping",
+	"آمار":         "stats",
+	"شروع":         "start",
+	"پیام همگانی":  "broadcast",
+	"فعال‌ها":      "active",
+	"پنل":          "settings",
 }
 
 var plainCommandAliasKeys = []string{
 	"توقف پخش",
 	"اتمام",
+	"پایان کار",
+	"مکث",
 	"مکث پلیر",
+	"ادامه",
 	"ازسرگیری",
 	"پخش بیصدا",
 	"پخش باصدا",
@@ -590,8 +693,32 @@ var plainCommandAliasKeys = []string{
 	"تنظیم صدا",
 	"شروع کال",
 	"پایان کال",
-	"پایان کار",
 	"لینک کال",
+	"ربات",
+	"رد کردن",
+	"بعدی",
+	"پاکسازی صف",
+	"پاک کردن",
+	"حذف از صف",
+	"حذف",
+	"تصادفی",
+	"ترتیب تصادفی",
+	"تکرار",
+	"حلقه",
+	"صف",
+	"لیست پخش",
+	"وضعیت",
+	"جایگاه",
+	"راهنما",
+	"پینگ",
+	"تست سرعت",
+	"آمار",
+	"شروع",
+	"پیام همگانی",
+	"ارسال همگانی",
+	"کال‌های فعال",
+	"فعال‌ها",
+	"پنل",
 }
 
 func plainTextCommandHandler(m *telegram.NewMessage) error {
@@ -664,6 +791,11 @@ var cbHandlers = []CbHandlerDef{
 func Init(bot *telegram.Client, assistants *core.AssistantManager) {
 	bot.UpdatesGetState()
 	bot.Use(blacklistMessageMiddleware)
+	bot.Use(groupApprovalMiddleware)
+
+	//-------- Anti spam ---------//
+	// bot.Use(antiSpamMiddleware)
+
 	bot.AddMessageHandler(
 		"^(?i).+$",
 		plainTextCommandHandler,
@@ -686,11 +818,13 @@ func Init(bot *telegram.Client, assistants *core.AssistantManager) {
 	for _, h := range cbHandlers {
 		bot.AddCallbackHandler(
 			h.Pattern,
-			WithBlacklistCallback(SafeCallbackHandler(h.Handler)),
+			WithApprovalCallback(WithBlacklistCallback(SafeCallbackHandler(h.Handler))),
 			h.Filters...,
 		).
 			SetGroup(90)
 	}
+
+	bot.AddCallbackHandler("^chats_pg_|^tgl_app_|^noop$", handleGroupManagementCallbacks).SetGroup(84)
 
 	bot.On("edit:/eval", evalHandle).SetGroup(80)
 	bot.On("edit:/ev", evalCommandHandler).SetGroup(80)

@@ -67,6 +67,21 @@ func emptyCBHandler(cb *tg.CallbackQuery) error {
 	return tg.ErrEndGroup
 }
 
+func checkHesOranother(cb *tg.CallbackQuery, chatID int64) bool {
+	if canUseAdminCommand(cb.Client, chatID, cb.SenderID) {
+		return true
+	}
+
+	opt := &tg.CallbackOptions{Alert: false}
+	mode, err := database.GetAdminMode(chatID)
+	if err == nil && mode == database.AdminModeAdminsOnly {
+		cb.Answer(F(chatID, "only_admin_cb_hes"), opt)
+	} else {
+		cb.Answer(F(chatID, "only_admin_or_auth_cb_hes"), opt)
+	}
+	return false
+}
+
 func roomHandle(cb *tg.CallbackQuery) error {
 	opt := &tg.CallbackOptions{Alert: false}
 	chatID := cb.ChannelID()
@@ -94,7 +109,11 @@ func roomHandle(cb *tg.CallbackQuery) error {
 		return tg.ErrEndGroup
 	}
 
-	if !checkAdminOrAuth(cb, chatID) {
+	track := r.Track()
+
+	isRequester := track != nil && cb.SenderID == track.RequesterID
+
+	if !isRequester && !checkHesOranother(cb, chatID) {
 		return tg.ErrEndGroup
 	}
 
@@ -269,18 +288,59 @@ func handleSkipAction(cb *tg.CallbackQuery, r *core.RoomState) error {
 	chatID := cb.ChannelID()
 	gologging.InfoF("Callback → skip, chatID=%d", chatID)
 
+	// if len(r.Queue()) == 0 {
+	// 	stoppedText := F(chatID, "skip_stopped", locales.Arg{
+	// 		"user": utils.MentionHTML(cb.Sender),
+	// 	})
+	// 	finishPlaybackRoom(r, stoppedText)
+	// 	cb.Answer(F(chatID, "cb_skip_queue_empty"), opt)
+	// 	return tg.ErrEndGroup
+	// }
+
 	if len(r.Queue()) == 0 {
-		stoppedText := F(chatID, "skip_stopped", locales.Arg{
-			"user": utils.MentionHTML(cb.Sender),
-		})
-		finishPlaybackRoom(r, stoppedText)
 		cb.Answer(F(chatID, "cb_skip_queue_empty"), opt)
 		return tg.ErrEndGroup
 	}
 
 	r.SetLoop(0)
 	t := r.NextTrack()
+	// --------- for nothing after skipping ----------
+	// statusMsg, err := cb.Respond(F(chatID, "stream_downloading_next"))
+	// if err != nil {
+	// 	gologging.ErrorF("Failed to send status message: %v", err)
+	// }
 
+	// ------------ for edit now msg without new msg ---------
+	// statusMsg := r.StatusMsg()
+	// if statusMsg != nil {
+	// 	_, err := statusMsg.Edit(F(chatID, "stream_downloading_next"), &tg.SendOptions{ParseMode: "HTML"})
+	// 	if err != nil {
+	// 		gologging.ErrorF("Failed to edit status message: %v", err)
+	// 	}
+	// } else {
+	// 	// اگر به هر دلیلی بنر قبلی نبود، یک پیام جدید می‌سازیم
+	// 	var err error
+	// 	statusMsg, err = core.Bot.SendMessage(chatID, F(chatID, "stream_downloading_next"), &tg.SendOptions{ParseMode: "HTML"})
+	// 	if err != nil {
+	// 		gologging.ErrorF("Failed to send status message: %v", err)
+	// 	}
+	// }
+
+	track := r.Track()
+
+	var skippedText string
+	if track != nil {
+		skippedText = F(chatID, "cb_skip_edited", locales.Arg{
+			"url":      track.URL,
+			"title":    utils.EscapeHTML(utils.ShortTitle(track.Title, 35)),
+			"duration": utils.FormatDuration(track.Duration),
+			"by":       track.Requester,
+		})
+	} else {
+		skippedText = F(chatID, "cb_skip_edited", locales.Arg{})
+	}
+
+	cb.Answer(F(chatID, "cb_skip_success"), opt)
 	statusMsg, err := cb.Respond(F(chatID, "stream_downloading_next"))
 	if err != nil {
 		gologging.ErrorF("Failed to send status message: %v", err)
@@ -306,9 +366,10 @@ func handleSkipAction(cb *tg.CallbackQuery, r *core.RoomState) error {
 		core.DeleteRoom(r.ID)
 		return tg.ErrEndGroup
 	}
+	// ---- line 349
+	closePlaybackPanel(r, skippedText)
 
-	cb.Answer(F(chatID, "cb_skip_success"), opt)
-	cb.Delete()
+	// cb.Delete()
 
 	msgText := F(chatID, "stream_now_playing", locales.Arg{
 		"url":      t.URL,
@@ -327,16 +388,16 @@ func handleSkipAction(cb *tg.CallbackQuery, r *core.RoomState) error {
 
 	statusMsg, err = utils.EOR(statusMsg, msgText, sendOpt)
 	if err != nil {
-		cb.Respond(F(chatID, "cb_skip_edited", locales.Arg{
-			"user": utils.MentionHTML(cb.Sender),
-		}))
+		// cb.Respond(F(chatID, "cb_skip_edited", locales.Arg{
+		// 	"user": utils.MentionHTML(cb.Sender),
+		// }))
 		return tg.ErrEndGroup
 	}
 
 	r.SetStatusMsg(statusMsg)
-	statusMsg.Reply(F(chatID, "cb_skip_edited", locales.Arg{
-		"user": utils.MentionHTML(cb.Sender),
-	}))
+	// statusMsg.Reply(F(chatID, "cb_skip_edited", locales.Arg{
+	// 	"user": utils.MentionHTML(cb.Sender),
+	// }))
 	return tg.ErrEndGroup
 }
 

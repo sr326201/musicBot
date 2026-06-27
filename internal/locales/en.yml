@@ -920,6 +920,8 @@ spt_result: |
   Upload: <code>{ul_mbps} Mbps</code>
 
 start_private: "Hello {user}, My name is {bot}.\n\nI'm a telegram streaming bot with some useful features. Supporting platforms like Youtube, Spotify, JioSaavn, Soundcloud etc.\n\nFeel free to add me to your groups."
+start_private_sudo: "Hello {user}! You have been identified as a **Sudo** user. ⚡️\nYou have high-level administrative access and can use the bot's system and monitoring commands. Glad to have you on the management team!"
+start_private_owner: "Hello Boss! 👑 You are the owner of this bot.\nFull control of all settings, database, and sensitive commands is in your hands. Whatever you command shall be done!"
 
 start_group: "<b>💫 I’m here!</b> Try a command… if you think you can handle me 😉"
 
