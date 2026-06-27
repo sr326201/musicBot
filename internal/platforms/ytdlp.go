@@ -248,6 +248,8 @@ func (y *YtdlpPlatform) Download(
 		"--no-warnings",
 		"--ignore-errors",
 		"--no-check-certificate",
+		"--remote-components", "ejs:github",
+		"--js-runtimes", "node",
 		"-q",
 		"-o", getPath(track, ".%(ext)s"),
 	}
@@ -327,6 +329,8 @@ func (y *YtdlpPlatform) extractMetadata(urlStr string) (*ytdlpInfo, error) {
 		"--flat-playlist",
 		"--no-warnings",
 		"--no-check-certificate",
+		"--remote-components", "ejs:github",
+		"--js-runtimes", "node",
 	}
 
 	// Add cookies only for YouTube
