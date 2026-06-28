@@ -443,18 +443,26 @@ func preferredStrategyCacheKey(kind string, isYouTube bool, video bool) string {
 	return fmt.Sprintf("%s:yt=%t:video=%t", kind, isYouTube, video)
 }
 
-func strategyCooldownKey(kind string, strategyName string) string {
-	return kind + ":" + strategyName
+func strategyAttemptScopeKey(kind string, isYouTube bool, video bool, rawURL string) string {
+	normalized := strings.TrimSpace(strings.ToLower(rawURL))
+	if safeURL, err := sanitizeMediaURL(rawURL); err == nil {
+		normalized = strings.ToLower(safeURL)
+	}
+	return fmt.Sprintf("%s:yt=%t:video=%t:url=%s", kind, isYouTube, video, normalized)
 }
 
-func preferAndFilterStrategies(kind string, strategies []ytdlpStrategy, preferredKey string) []ytdlpStrategy {
+func strategyCooldownKey(scopeKey string, strategyName string) string {
+	return scopeKey + ":" + strategyName
+}
+
+func preferAndFilterStrategies(scopeKey string, strategies []ytdlpStrategy, preferredKey string) []ytdlpStrategy {
 	if len(strategies) <= 1 {
 		return strategies
 	}
 	filtered := make([]ytdlpStrategy, 0, len(strategies))
 	now := time.Now()
 	for _, strat := range strategies {
-		if until, ok := ytdlpStrategyCooldownUntil.Get(strategyCooldownKey(kind, strat.name)); ok && until.After(now) {
+		if until, ok := ytdlpStrategyCooldownUntil.Get(strategyCooldownKey(scopeKey, strat.name)); ok && until.After(now) {
 			continue
 		}
 		filtered = append(filtered, strat)
@@ -478,12 +486,12 @@ func preferAndFilterStrategies(kind string, strategies []ytdlpStrategy, preferre
 	return filtered
 }
 
-func markStrategySuccess(kind string, preferredKey string, strat ytdlpStrategy) {
+func markStrategySuccess(scopeKey string, preferredKey string, strat ytdlpStrategy) {
 	ytdlpPreferredStrategy.Set(preferredKey, strat.name)
-	ytdlpStrategyCooldownUntil.Delete(strategyCooldownKey(kind, strat.name))
+	ytdlpStrategyCooldownUntil.Delete(strategyCooldownKey(scopeKey, strat.name))
 }
 
-func markStrategyCooldown(kind string, strat ytdlpStrategy, attemptErr *ytdlpAttemptError) {
+func markStrategyCooldown(scopeKey string, strat ytdlpStrategy, attemptErr *ytdlpAttemptError) {
 	if attemptErr == nil {
 		return
 	}
@@ -496,7 +504,7 @@ func markStrategyCooldown(kind string, strat ytdlpStrategy, attemptErr *ytdlpAtt
 	default:
 		return
 	}
-	ytdlpStrategyCooldownUntil.Set(strategyCooldownKey(kind, strat.name), time.Now().Add(cooldown))
+	ytdlpStrategyCooldownUntil.Set(strategyCooldownKey(scopeKey, strat.name), time.Now().Add(cooldown))
 }
 
 func isRetryableYtDlpCode(code ytdlpErrorCode) bool {
@@ -628,7 +636,7 @@ func userFacingYtDlpError(err error, caps ytdlpCapabilities) error {
 	}
 }
 
-func buildMetadataStrategies(isYouTube bool, caps ytdlpCapabilities) []ytdlpStrategy {
+func buildMetadataStrategies(isYouTube bool, caps ytdlpCapabilities, scopeKey string) []ytdlpStrategy {
 	strategies := []ytdlpStrategy{{name: "default-metadata"}}
 	if !isYouTube {
 		return strategies
@@ -640,20 +648,20 @@ func buildMetadataStrategies(isYouTube bool, caps ytdlpCapabilities) []ytdlpStra
 		true,
 	)
 	return preferAndFilterStrategies(
-		"metadata",
+		scopeKey,
 		variants,
 		preferredStrategyCacheKey("metadata", true, false),
 	)
 }
 
-func buildDownloadStrategies(track *state.Track, isYouTube bool, caps ytdlpCapabilities) []ytdlpStrategy {
+func buildDownloadStrategies(track *state.Track, isYouTube bool, caps ytdlpCapabilities, scopeKey string) []ytdlpStrategy {
 	if track.Video {
-		return buildVideoDownloadStrategies(isYouTube, caps)
+		return buildVideoDownloadStrategies(isYouTube, caps, scopeKey)
 	}
-	return buildAudioDownloadStrategies(isYouTube, caps)
+	return buildAudioDownloadStrategies(isYouTube, caps, scopeKey)
 }
 
-func buildAudioDownloadStrategies(isYouTube bool, caps ytdlpCapabilities) []ytdlpStrategy {
+func buildAudioDownloadStrategies(isYouTube bool, caps ytdlpCapabilities, scopeKey string) []ytdlpStrategy {
 	formats := []ytdlpStrategy{
 		{
 			name:        "audio-best",
@@ -688,13 +696,13 @@ func buildAudioDownloadStrategies(isYouTube bool, caps ytdlpCapabilities) []ytdl
 	}
 
 	return preferAndFilterStrategies(
-		"download",
+		scopeKey,
 		out,
 		preferredStrategyCacheKey("download", true, false),
 	)
 }
 
-func buildVideoDownloadStrategies(isYouTube bool, caps ytdlpCapabilities) []ytdlpStrategy {
+func buildVideoDownloadStrategies(isYouTube bool, caps ytdlpCapabilities, scopeKey string) []ytdlpStrategy {
 	formats := []ytdlpStrategy{
 		{
 			name:   "video-combined-18",
@@ -735,7 +743,7 @@ func buildVideoDownloadStrategies(isYouTube bool, caps ytdlpCapabilities) []ytdl
 	}
 
 	return preferAndFilterStrategies(
-		"download",
+		scopeKey,
 		out,
 		preferredStrategyCacheKey("download", true, true),
 	)
@@ -839,6 +847,11 @@ func (y *YtdlpPlatform) Download(
 	track *state.Track,
 	_ *telegram.NewMessage,
 ) (string, error) {
+	safeURL, err := sanitizeMediaURL(track.URL)
+	if err != nil {
+		return "", errUnsafeURL
+	}
+
 	if f := findFile(track); f != "" {
 		gologging.Debug("Ytdlp: Download -> Cached File -> " + f)
 		return f, nil
@@ -847,14 +860,15 @@ func (y *YtdlpPlatform) Download(
 	gologging.InfoF("YtDlp: Downloading %s", track.Title)
 	caps := getYtDlpCapabilities()
 	isYouTube := y.isYouTubeURL(track.URL)
-	strategies := buildDownloadStrategies(track, isYouTube, caps)
+	cooldownScopeKey := strategyAttemptScopeKey("download", isYouTube, track.Video, safeURL)
+	strategies := buildDownloadStrategies(track, isYouTube, caps, cooldownScopeKey)
 	preferredKey := preferredStrategyCacheKey("download", isYouTube, track.Video)
 
 	var lastErr error
 	for _, strat := range strategies {
 		path, err := y.downloadWithStrategy(ctx, track, strat, caps, isYouTube)
 		if err == nil {
-			markStrategySuccess("download", preferredKey, strat)
+			markStrategySuccess(cooldownScopeKey, preferredKey, strat)
 			gologging.InfoF("YtDlp: Successfully downloaded %s via strategy %s", path, strat.name)
 			return path, nil
 		}
@@ -865,7 +879,7 @@ func (y *YtdlpPlatform) Download(
 
 		lastErr = err
 		attemptErr := extractAttemptError(err)
-		markStrategyCooldown("download", strat, attemptErr)
+		markStrategyCooldown(cooldownScopeKey, strat, attemptErr)
 		if isYouTube && shouldEscalateYouTubeStrategy(attemptErr) {
 			gologging.WarnF("YtDlp: escalating YouTube strategy after %s failed: %v", strat.name, err)
 			continue
@@ -985,7 +999,8 @@ func (y *YtdlpPlatform) extractMetadata(urlStr string) (*ytdlpInfo, error) {
 	}
 	caps := getYtDlpCapabilities()
 	isYouTube := y.isYouTubeURL(urlStr)
-	strategies := buildMetadataStrategies(isYouTube, caps)
+	cooldownScopeKey := strategyAttemptScopeKey("metadata", isYouTube, false, safeURL)
+	strategies := buildMetadataStrategies(isYouTube, caps, cooldownScopeKey)
 	preferredKey := preferredStrategyCacheKey("metadata", isYouTube, false)
 
 	var output string
@@ -1001,7 +1016,7 @@ func (y *YtdlpPlatform) extractMetadata(urlStr string) (*ytdlpInfo, error) {
 		}
 		lastErr = err
 		attemptErr := extractAttemptError(err)
-		markStrategyCooldown("metadata", strat, attemptErr)
+		markStrategyCooldown(cooldownScopeKey, strat, attemptErr)
 		if isYouTube && shouldEscalateYouTubeStrategy(attemptErr) {
 			continue
 		}
@@ -1014,7 +1029,7 @@ func (y *YtdlpPlatform) extractMetadata(urlStr string) (*ytdlpInfo, error) {
 	if lastErr != nil {
 		return nil, fmt.Errorf("metadata extraction failed: %w", lastErr)
 	}
-	markStrategySuccess("metadata", preferredKey, successStrategy)
+	markStrategySuccess(cooldownScopeKey, preferredKey, successStrategy)
 
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 
