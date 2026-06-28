@@ -225,12 +225,12 @@ cb_mute_message: |
 
 cb_unmute_success: "آن میوته 🔊"
 
-cb_seek_success: "⏩ Sought forward {seconds} seconds"
+cb_seek_success: "⏩ انقد {seconds} رفت جلو"
 cb_seek_near_end: "⚠️ Cannot seek forward {seconds} seconds — about to reach end."
-cb_seek_edited: "⏩ Sought {seconds} seconds — by {user}"
+cb_seek_edited: "⏩ انقد {seconds} رفت جولو — توسط {user}"
 
-cb_seekback_success: "⏪ Sought back {seconds} seconds"
-cb_seekback_edited: "⏪ Sought back {seconds} seconds — by {user}"
+cb_seekback_success: "⏪ انقد {seconds} رفت عقب"
+cb_seekback_edited: "⏪ انقد {seconds} رفت عقب — توسط {user}"
 
 # 🗑️ Delete auth
 del_auth_not_authorized: "⚠️ That user isn’t authorized — nothing to remove."
@@ -948,7 +948,7 @@ stream_channelid_fail: |
 stream_queue_finished: |
   🎵 <b>تمام شد!</b>
 stream_downloading_next: |
-  📥 در حال دانلود آهنگ بعدی...
+  📥 در حال دانلود بعدی...
 stream_download_fail: |
   ❌ دانلود ناموفق بود.
   خطا: <code>{error}</code>
@@ -1003,6 +1003,12 @@ voice_chat_start_yes: "شروع کال"
 voice_chat_start_no: "نیاز نیست"
 voice_chat_started: "✅ در حال آماده‌سازی پخش..."
 voice_chat_already_active: "✅ ویس‌چت از قبل فعال است."
+voice_chat_permission_required: |
+  ⚠️ <b>دسترسی کنترل ویس‌کال لازم است</b>
+
+  برای ساختن، بستن یا گرفتن لینک ویس‌کال باید من در این گروه ادمین باشم و دسترسی مدیریت ویس‌کال را داشته باشم.
+
+  <i>لطفاً دسترسی‌های Voice Chat / Manage Calls را فعال کن و دوباره امتحان کن.</i>
 voice_chat_cancelled: "پخش لغو شد."
 voice_chat_start_failed: "❌ فعال‌سازی ویس‌چت ناموفق بود: {error}"
 voice_chat_play_resumed: "پخش شروع شد."

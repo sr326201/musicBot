@@ -12,10 +12,11 @@ func (ctx *Context) GetInputGroupCall(chatId int64) (tg.InputGroupCall, error) {
 	ctx.inputGroupCallsMutex.RUnlock()
 
 	if ok {
-		if call == nil {
-			return nil, fmt.Errorf("group call for chatId %d is closed", chatId)
+		if call != nil {
+			return call, nil
 		}
-		return call, nil
+
+		ctx.clearInputGroupCall(chatId)
 	}
 
 	peer, err := ctx.app.ResolvePeer(chatId)
@@ -47,12 +48,14 @@ func (ctx *Context) GetInputGroupCall(chatId int64) (tg.InputGroupCall, error) {
 		return nil, fmt.Errorf("chatId %d is not a group call", chatId)
 	}
 
+	if retrievedCall == nil {
+		ctx.clearInputGroupCall(chatId)
+		return nil, fmt.Errorf("group call for chatId %d is closed", chatId)
+	}
+
 	ctx.inputGroupCallsMutex.Lock()
 	ctx.inputGroupCalls[chatId] = retrievedCall
 	ctx.inputGroupCallsMutex.Unlock()
 
-	if retrievedCall == nil {
-		return nil, fmt.Errorf("group call for chatId %d is closed", chatId)
-	}
 	return retrievedCall, nil
 }

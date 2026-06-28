@@ -58,6 +58,7 @@ type Context struct {
 var (
 	ErrAlreadyInGroupCall     = errors.New("already in group call")
 	ErrGroupCallAlreadyClosed = errors.New("group call already closed")
+	ErrGroupCallPermissionDenied = errors.New("group call permission denied")
 )
 
 func (ctx *Context) OnGroupCallMessage(callback func(*GroupCallMessageEvent)) {
@@ -382,8 +383,33 @@ func isClosedGroupCallErr(err error) bool {
 	}
 
 	msg := strings.ToLower(err.Error())
+	if tg.MatchError(err, "GROUPCALL_INVALID") {
+		return true
+	}
+
 	return strings.Contains(msg, "closed") ||
-		strings.Contains(msg, "group call for chatid") && strings.Contains(msg, "closed")
+		strings.Contains(msg, "already ended") ||
+		strings.Contains(msg, "has already ended") ||
+		(strings.Contains(msg, "group call") && strings.Contains(msg, "ended")) ||
+		(strings.Contains(msg, "group call for chatid") && strings.Contains(msg, "closed"))
+}
+
+func isGroupCallPermissionErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "already ended") || strings.Contains(msg, "has already ended") {
+		return false
+	}
+
+	return tg.MatchError(err, "CHAT_ADMIN_REQUIRED") ||
+		tg.MatchError(err, "USER_ADMIN_INVALID") ||
+		tg.MatchError(err, "GROUPCALL_FORBIDDEN") ||
+		strings.Contains(msg, "admin permission required") ||
+		strings.Contains(msg, "not enough rights") ||
+		(strings.Contains(msg, "forbidden") && strings.Contains(msg, "group call"))
 }
 
 func isAlreadyInGroupCallErr(err error) bool {
@@ -447,7 +473,16 @@ func (ctx *Context) StartGroupCall(chatId int64) error {
 	}
 
 	if _, err := ctx.GetInputGroupCall(chatId); err == nil {
-		return ctx.JoinGroupCall(chatId)
+		if err := ctx.JoinGroupCall(chatId); err != nil {
+			if !errors.Is(err, ErrGroupCallAlreadyClosed) &&
+				!errors.Is(err, ErrGroupCallPermissionDenied) {
+				return err
+			}
+
+			ctx.clearInputGroupCall(chatId)
+		} else {
+			return nil
+		}
 	}
 
 	ctx.clearInputGroupCall(chatId)
@@ -465,6 +500,10 @@ func (ctx *Context) StartGroupCall(chatId int64) error {
 		if tg.MatchError(err, "GROUPCALL_EXISTS") ||
 			strings.Contains(strings.ToLower(err.Error()), "groupcall_exists") {
 			return ctx.JoinGroupCall(chatId)
+		}
+
+		if isGroupCallPermissionErr(err) {
+			return ErrGroupCallPermissionDenied
 		}
 
 		return err
@@ -512,6 +551,15 @@ func (ctx *Context) JoinGroupCall(chatId int64) error {
 			return ErrAlreadyInGroupCall
 		}
 
+		if isClosedGroupCallErr(err) {
+			ctx.clearInputGroupCall(chatId)
+			return ErrGroupCallAlreadyClosed
+		}
+
+		if isGroupCallPermissionErr(err) {
+			return ErrGroupCallPermissionDenied
+		}
+
 		return err
 	}
 
@@ -536,6 +584,10 @@ func (ctx *Context) EndGroupCall(chatId int64) error {
 				return ErrGroupCallAlreadyClosed
 			}
 
+			if isGroupCallPermissionErr(err) {
+				return ErrGroupCallPermissionDenied
+			}
+
 			return err
 		}
 	}
@@ -545,9 +597,55 @@ func (ctx *Context) EndGroupCall(chatId int64) error {
 	}
 
 	if _, err := ctx.app.PhoneDiscardGroupCall(inputGroupCall); err != nil {
-		if isClosedGroupCallErr(err) {
+		if isClosedGroupCallErr(err) || isGroupCallPermissionErr(err) {
 			ctx.clearInputGroupCall(chatId)
+
+			freshCall, getErr := ctx.GetInputGroupCall(chatId)
+			if getErr != nil {
+				if isGroupCallPermissionErr(getErr) {
+					return ErrGroupCallPermissionDenied
+				}
+
+				if isClosedGroupCallErr(getErr) {
+					return ErrGroupCallAlreadyClosed
+				}
+
+				return getErr
+			}
+
+			if freshCall != nil {
+				if tg.MatchError(err, "GROUPCALL_FORBIDDEN") || isGroupCallPermissionErr(err) {
+					ctx.inputGroupCallsMutex.Lock()
+					ctx.inputGroupCalls[chatId] = freshCall
+					ctx.inputGroupCallsMutex.Unlock()
+					return ErrGroupCallPermissionDenied
+				}
+
+				if _, retryErr := ctx.app.PhoneDiscardGroupCall(freshCall); retryErr != nil {
+					if isGroupCallPermissionErr(retryErr) {
+						ctx.inputGroupCallsMutex.Lock()
+						ctx.inputGroupCalls[chatId] = freshCall
+						ctx.inputGroupCallsMutex.Unlock()
+						return ErrGroupCallPermissionDenied
+					}
+
+					if isClosedGroupCallErr(retryErr) {
+						ctx.clearInputGroupCall(chatId)
+						return ErrGroupCallAlreadyClosed
+					}
+
+					return retryErr
+				}
+
+				ctx.clearInputGroupCall(chatId)
+				return nil
+			}
+
 			return ErrGroupCallAlreadyClosed
+		}
+
+		if isGroupCallPermissionErr(err) {
+			return ErrGroupCallPermissionDenied
 		}
 
 		return err
@@ -568,6 +666,15 @@ func (ctx *Context) ExportGroupCallInvite(chatId int64, canSelfUnmute bool) (str
 
 	invite, err := ctx.app.PhoneExportGroupCallInvite(canSelfUnmute, inputGroupCall)
 	if err != nil {
+		if isClosedGroupCallErr(err) {
+			ctx.clearInputGroupCall(chatId)
+			return "", ErrGroupCallAlreadyClosed
+		}
+
+		if isGroupCallPermissionErr(err) {
+			return "", ErrGroupCallPermissionDenied
+		}
+
 		return "", err
 	}
 	if invite == nil || invite.Link == "" {

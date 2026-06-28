@@ -294,6 +294,13 @@ err_no_active_voicechat: |
 
   <i>Already started one? Use /reload to refresh.</i>
 
+voice_chat_permission_required: |
+  ⚠️ <b>Voice Chat Control Permission Required</b>
+
+  I need to be an admin in this chat with permission to manage voice chats before I can create, end, or export the voice chat link.
+
+  <i>Please enable the Voice Chat / Manage Calls permission and try again.</i>
+
 err_fetch_failed: |
   ⚠️ Failed to fetch chat info:
   <i>{error}</i>

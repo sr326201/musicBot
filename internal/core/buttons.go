@@ -167,7 +167,7 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) tg.ReplyMarkup {
 	muteLabel, muteAction := "", "mute"
 
 	if r.IsMuted() {
-		muteLabel, muteAction = "", "unmute"
+		muteLabel, muteAction = "🔇", "unmute"
 	}
 
 	muteBtn := tg.Button.Data(

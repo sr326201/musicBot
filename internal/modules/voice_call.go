@@ -104,6 +104,51 @@ func replyAndDeleteAfter(m *telegram.NewMessage, text string) {
 	}()
 }
 
+func voiceCallPermissionMessage(chatID int64) string {
+	return F(chatID, "voice_chat_permission_required")
+}
+
+func voiceCallStartErrorMessage(chatID int64, err error) string {
+	switch {
+	case errors.Is(err, ubot.ErrAlreadyInGroupCall):
+		return "کال درحال اجراست ✅"
+	case errors.Is(err, ubot.ErrGroupCallPermissionDenied):
+		return voiceCallPermissionMessage(chatID)
+	default:
+		return "شروع ویس‌کال ناموفق بود"
+	}
+}
+
+func voiceCallEndErrorMessage(chatID int64, err error) string {
+	switch {
+	case errors.Is(err, ubot.ErrGroupCallAlreadyClosed):
+		return "کال از قبل پایان رسیده است"
+	case errors.Is(err, ubot.ErrGroupCallPermissionDenied):
+		return voiceCallPermissionMessage(chatID)
+	default:
+		return "بستن ویس‌کال ناموفق بود"
+	}
+}
+
+func voiceCallInviteErrorMessage(chatID int64, err error) string {
+	switch {
+	case errors.Is(err, ubot.ErrGroupCallAlreadyClosed):
+		return F(chatID, "err_no_active_voicechat")
+	case errors.Is(err, ubot.ErrGroupCallPermissionDenied):
+		return voiceCallPermissionMessage(chatID)
+	default:
+		return "دریافت لینک ویس‌کال ناموفق بود: " + err.Error()
+	}
+}
+
+func voiceCallCallbackErrorMessage(chatID int64, err error) string {
+	if errors.Is(err, ubot.ErrGroupCallPermissionDenied) {
+		return voiceCallPermissionMessage(chatID)
+	}
+
+	return F(chatID, "voice_chat_start_failed", locales.Arg{"error": err.Error()})
+}
+
 func startCallHandler(m *telegram.NewMessage) error {
 	chatID := m.ChannelID()
 
@@ -118,12 +163,12 @@ func startCallHandler(m *telegram.NewMessage) error {
 			if cs, csErr := core.GetChatState(chatID); csErr == nil {
 				cs.SetVoiceChatActive(true)
 			}
-			replyAndDeleteAfter(m, "کال درحال اجراست ✅")
+			replyAndDeleteAfter(m, voiceCallStartErrorMessage(chatID, err))
 			return telegram.ErrEndGroup
 		}
 
 		gologging.ErrorF("failed to start voice call in chat %d: %v", chatID, err)
-		replyAndDeleteAfter(m, "شروع ویس‌کال ناموفق بود")
+		replyAndDeleteAfter(m, voiceCallStartErrorMessage(chatID, err))
 		return telegram.ErrEndGroup
 	}
 
@@ -148,21 +193,33 @@ func endCallHandler(m *telegram.NewMessage) error {
 
 	if err := ass.Ntg.EndGroupCall(chatID); err != nil {
 		if errors.Is(err, ubot.ErrGroupCallAlreadyClosed) {
-			replyAndDeleteAfter(m, "کال از قبل پایان رسیده است")
+			if cs, csErr := core.GetChatState(chatID); csErr == nil {
+				cs.SetVoiceChatActive(false)
+			}
+			core.DeleteRoom(chatID)
+			replyAndDeleteAfter(m, voiceCallEndErrorMessage(chatID, err))
 			return telegram.ErrEndGroup
 		}
 
 		gologging.ErrorF("failed to end voice call in chat %d: %v", chatID, err)
-		replyAndDeleteAfter(m, "بستن ویس‌کال ناموفق بود")
+		replyAndDeleteAfter(m, voiceCallEndErrorMessage(chatID, err))
 		return telegram.ErrEndGroup
+	}
+
+	if cs, csErr := core.GetChatState(chatID); csErr == nil {
+		cs.SetVoiceChatActive(false)
 	}
 
 	reactToCommandMessage(m, "👍")
 
-	track := r.Track()
-	title := utils.EscapeHTML(utils.ShortTitle(track.Title, 35))
-
 	if ok && r != nil {
+		track := r.Track()
+		if track == nil {
+			core.DeleteRoom(chatID)
+			return telegram.ErrEndGroup
+		}
+
+		title := utils.EscapeHTML(utils.ShortTitle(track.Title, 35))
 
 		closePlaybackPanel(r, F(
 			chatID,
@@ -229,7 +286,7 @@ func voiceChatConfirmCB(cb *tg.CallbackQuery) error {
 	err = ass.Ntg.StartGroupCall(chatID)
 	if err != nil && !errors.Is(err, ubot.ErrAlreadyInGroupCall) {
 		gologging.ErrorF("failed to start voice call from callback in chat %d: %v", chatID, err)
-		msg := F(chatID, "voice_chat_start_failed", locales.Arg{"error": err.Error()})
+		msg := voiceCallCallbackErrorMessage(chatID, err)
 		cb.Edit(msg)
 		cb.Answer(msg, opt)
 		return tg.ErrEndGroup
@@ -273,7 +330,7 @@ func callLinkHandler(m *telegram.NewMessage) error {
 
 	link, err := ass.Ntg.ExportGroupCallInvite(chatID, false)
 	if err != nil {
-		m.Reply("دریافت لینک ویس‌کال ناموفق بود: " + err.Error())
+		m.Reply(voiceCallInviteErrorMessage(chatID, err))
 		return telegram.ErrEndGroup
 	}
 

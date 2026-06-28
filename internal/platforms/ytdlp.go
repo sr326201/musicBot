@@ -1,20 +1,3 @@
-/*
- * ● YukkiMusic
- * ○ A high-performance engine for streaming music in Telegram voicechats.
- *
- * Copyright (C) 2026 TheTeamVivek
- *
- * This program is free software: you can redistribute it and/or modify it under the
- * terms of the GNU General Public License as published by the Free Software Foundation,
- * either version 3 of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- * Repository: https://github.com/TheTeamVivek/YukkiMusic
- */
-
 package platforms
 
 import (
@@ -24,15 +7,21 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
+	"runtime"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Laky-64/gologging"
 	"github.com/amarnathcjd/gogram/telegram"
 
 	state "main/internal/core/models"
+	"main/internal/utils"
 )
 
 const PlatformYtDlp state.PlatformName = "YtDlp"
@@ -54,6 +43,86 @@ type ytdlpInfo struct {
 	Extractor   string      `json:"extractor"`
 	Entries     []ytdlpInfo `json:"entries"`
 }
+
+type ytdlpCapabilities struct {
+	workDir      string
+	cookiesPath  string
+	hasCookies   bool
+	cookiesFresh bool
+	hasDeno      bool
+	hasNode      bool
+	hasFFmpeg    bool
+	runtimeNames []string
+}
+
+type ytdlpStrategy struct {
+	name             string
+	format           string
+	audioFormat      string
+	useCookies       bool
+	useImpersonation bool
+	useExtractorArgs bool
+	useRemoteEJS     bool
+	useNoJSRuntimes  bool
+	runtimeName      string
+	userAgent        string
+	concurrentParts  int
+}
+
+type ytdlpErrorCode string
+
+const (
+	errYtDlpLoginRequired  ytdlpErrorCode = "youtube_login_required"
+	errYtDlpBotChallenge   ytdlpErrorCode = "youtube_bot_challenge"
+	errYtDlpRateLimited    ytdlpErrorCode = "youtube_rate_limited"
+	errYtDlpPrivateContent ytdlpErrorCode = "private_content"
+	errYtDlpUnavailable    ytdlpErrorCode = "content_unavailable"
+	errYtDlpGeoRestricted  ytdlpErrorCode = "geo_restricted"
+	errYtDlpUnsupportedURL ytdlpErrorCode = "unsupported_url"
+	errYtDlpFormatMissing  ytdlpErrorCode = "format_unavailable"
+	errYtDlpFFmpegMissing  ytdlpErrorCode = "ffmpeg_missing"
+	errYtDlpRuntimeMissing ytdlpErrorCode = "js_runtime_missing"
+	errYtDlpNetwork        ytdlpErrorCode = "transient_network"
+	errYtDlpExtractor      ytdlpErrorCode = "extractor_failure"
+)
+
+type ytdlpAttemptError struct {
+	Code   ytdlpErrorCode
+	Reason string
+	Cause  error
+	Raw    string
+}
+
+func (e *ytdlpAttemptError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Reason != "" {
+		return e.Reason
+	}
+	if e.Cause != nil {
+		return e.Cause.Error()
+	}
+	return "yt-dlp error"
+}
+
+func (e *ytdlpAttemptError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
+}
+
+var (
+	ytdlpCapsOnce sync.Once
+	ytdlpCaps     ytdlpCapabilities
+
+	ytdlpMetadataCache         = utils.NewCache[string, *ytdlpInfo](15 * time.Minute)
+	ytdlpPreferredStrategy     = utils.NewCache[string, string](20 * time.Minute)
+	ytdlpStrategyCooldownUntil = utils.NewCache[string, time.Time](10 * time.Minute)
+)
+
+const ytdlpCookieFreshnessWindow = 45 * time.Minute
 
 var bannedExtractors = map[string]bool{
 	"alphaporno":     true,
@@ -224,9 +293,545 @@ func (y *YtdlpPlatform) GetTracks(
 }
 
 func (y *YtdlpPlatform) CanDownload(source state.PlatformName) bool {
-	// YtDlp can download from itself (when it extracts info)
-	// and from YouTube platform
 	return source == y.name || source == PlatformYouTube
+}
+
+func getYtDlpCapabilities() ytdlpCapabilities {
+	ytdlpCapsOnce.Do(func() {
+		caps := ytdlpCapabilities{
+			workDir: resolveYtDlpWorkDir(),
+		}
+
+		caps.cookiesPath, caps.hasCookies = resolveCookiesPath(caps.workDir)
+		caps.cookiesFresh = isFreshCookieFile(caps.cookiesPath, ytdlpCookieFreshnessWindow)
+		caps.hasFFmpeg = commandExists("ffmpeg")
+		caps.hasDeno = commandExists("deno")
+		caps.hasNode = commandExists("node")
+
+		switch {
+		case caps.hasDeno:
+			caps.runtimeNames = append(caps.runtimeNames, "deno")
+		case caps.hasNode:
+			caps.runtimeNames = append(caps.runtimeNames, "node")
+		}
+
+		ytdlpCaps = caps
+		gologging.InfoF(
+			"YtDlp: capabilities workdir=%s cookies=%t cookiesFresh=%t ffmpeg=%t runtimes=%v os=%s",
+			caps.workDir,
+			caps.hasCookies,
+			caps.cookiesFresh,
+			caps.hasFFmpeg,
+			caps.runtimeNames,
+			runtime.GOOS,
+		)
+	})
+
+	return ytdlpCaps
+}
+
+func resolveYtDlpWorkDir() string {
+	if wd, err := os.Getwd(); err == nil && wd != "" {
+		return wd
+	}
+	return "."
+}
+
+func resolveCookiesPath(workDir string) (string, bool) {
+	candidates := []string{
+		filepath.Join(workDir, "cookies.txt"),
+		"cookies.txt",
+	}
+
+	seen := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		abs := candidate
+		if !filepath.IsAbs(abs) {
+			abs = filepath.Join(workDir, candidate)
+		}
+		abs = filepath.Clean(abs)
+		if _, ok := seen[abs]; ok {
+			continue
+		}
+		seen[abs] = struct{}{}
+		if info, err := os.Stat(abs); err == nil && !info.IsDir() {
+			return abs, true
+		}
+	}
+
+	return filepath.Join(workDir, "cookies.txt"), false
+}
+
+func isFreshCookieFile(path string, freshWindow time.Duration) bool {
+	if path == "" || freshWindow <= 0 {
+		return false
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	return time.Since(info.ModTime()) <= freshWindow
+}
+
+func commandExists(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
+}
+
+func quoteArgs(args []string) string {
+	quoted := make([]string, 0, len(args))
+	for _, arg := range args {
+		if strings.ContainsAny(arg, " \t\n\r\"") {
+			quoted = append(quoted, fmt.Sprintf("%q", arg))
+			continue
+		}
+		quoted = append(quoted, arg)
+	}
+	return strings.Join(quoted, " ")
+}
+
+func (y *YtdlpPlatform) appendYouTubeAuthArgs(
+	args []string,
+	strat ytdlpStrategy,
+	caps ytdlpCapabilities,
+) []string {
+	if strat.useCookies {
+		if caps.hasCookies {
+			args = append(args, "--cookies", caps.cookiesPath)
+		} else {
+			gologging.WarnF(
+				"YtDlp: cookies requested by strategy %s but file not found at %s",
+				strat.name,
+				caps.cookiesPath,
+			)
+		}
+	}
+
+	if strat.useImpersonation {
+		args = append(args, "--impersonate", "chrome")
+	}
+
+	if strat.useExtractorArgs {
+		args = append(args, "--extractor-args", "youtube:player_client=ios,android,web")
+	}
+
+	if strat.useRemoteEJS {
+		args = append(args, "--remote-components", "ejs:github")
+	}
+
+	if strat.useNoJSRuntimes {
+		args = append(args, "--no-js-runtimes")
+	} else if strat.runtimeName != "" {
+		args = append(args, "--js-runtimes", strat.runtimeName)
+	}
+
+	if strat.userAgent != "" {
+		args = append(args, "--user-agent", strat.userAgent)
+	}
+
+	return args
+}
+
+func defaultChromeUserAgent() string {
+	return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
+}
+
+func preferredStrategyCacheKey(kind string, isYouTube bool, video bool) string {
+	return fmt.Sprintf("%s:yt=%t:video=%t", kind, isYouTube, video)
+}
+
+func strategyCooldownKey(kind string, strategyName string) string {
+	return kind + ":" + strategyName
+}
+
+func preferAndFilterStrategies(kind string, strategies []ytdlpStrategy, preferredKey string) []ytdlpStrategy {
+	if len(strategies) <= 1 {
+		return strategies
+	}
+	filtered := make([]ytdlpStrategy, 0, len(strategies))
+	now := time.Now()
+	for _, strat := range strategies {
+		if until, ok := ytdlpStrategyCooldownUntil.Get(strategyCooldownKey(kind, strat.name)); ok && until.After(now) {
+			continue
+		}
+		filtered = append(filtered, strat)
+	}
+	if len(filtered) == 0 {
+		filtered = append(filtered, strategies...)
+	}
+	preferred, ok := ytdlpPreferredStrategy.Get(preferredKey)
+	if !ok || preferred == "" {
+		return filtered
+	}
+	sort.SliceStable(filtered, func(i, j int) bool {
+		if filtered[i].name == preferred {
+			return true
+		}
+		if filtered[j].name == preferred {
+			return false
+		}
+		return false
+	})
+	return filtered
+}
+
+func markStrategySuccess(kind string, preferredKey string, strat ytdlpStrategy) {
+	ytdlpPreferredStrategy.Set(preferredKey, strat.name)
+	ytdlpStrategyCooldownUntil.Delete(strategyCooldownKey(kind, strat.name))
+}
+
+func markStrategyCooldown(kind string, strat ytdlpStrategy, attemptErr *ytdlpAttemptError) {
+	if attemptErr == nil {
+		return
+	}
+	var cooldown time.Duration
+	switch attemptErr.Code {
+	case errYtDlpLoginRequired, errYtDlpBotChallenge, errYtDlpRateLimited:
+		cooldown = 12 * time.Minute
+	case errYtDlpFormatMissing, errYtDlpRuntimeMissing:
+		cooldown = 5 * time.Minute
+	default:
+		return
+	}
+	ytdlpStrategyCooldownUntil.Set(strategyCooldownKey(kind, strat.name), time.Now().Add(cooldown))
+}
+
+func isRetryableYtDlpCode(code ytdlpErrorCode) bool {
+	switch code {
+	case errYtDlpNetwork, errYtDlpFormatMissing, errYtDlpRuntimeMissing:
+		return true
+	case errYtDlpLoginRequired, errYtDlpBotChallenge, errYtDlpRateLimited:
+		return true
+	case errYtDlpUnavailable, errYtDlpGeoRestricted:
+		return true
+	default:
+		return false
+	}
+}
+
+func shouldEscalateYouTubeStrategy(err *ytdlpAttemptError) bool {
+	if err == nil {
+		return false
+	}
+	switch err.Code {
+	case errYtDlpLoginRequired, errYtDlpBotChallenge, errYtDlpRateLimited:
+		return true
+	default:
+		return false
+	}
+}
+
+func classifyYtDlpError(stderr string, runErr error) error {
+	trimmed := strings.TrimSpace(stderr)
+	lower := strings.ToLower(trimmed)
+
+	wrap := func(code ytdlpErrorCode, reason string) error {
+		return &ytdlpAttemptError{
+			Code:   code,
+			Reason: reason,
+			Cause:  runErr,
+			Raw:    trimmed,
+		}
+	}
+
+	switch {
+	case strings.Contains(lower, "sign in to confirm you're not a bot") ||
+		strings.Contains(lower, "sign in to confirm you’re not a bot"):
+		return wrap(errYtDlpBotChallenge, "YouTube requires a refreshed logged-in session for this video")
+	case strings.Contains(lower, "login_required"):
+		return wrap(errYtDlpLoginRequired, "YouTube requires authentication for this content")
+	case strings.Contains(lower, "too many requests") ||
+		strings.Contains(lower, "http error 429") ||
+		strings.Contains(lower, "this content isn't available, try again later"):
+		return wrap(errYtDlpRateLimited, "YouTube is rate-limiting requests right now")
+	case strings.Contains(lower, "http error 403") ||
+		strings.Contains(lower, "forbidden"):
+		return wrap(errYtDlpRateLimited, "YouTube rejected this request with HTTP 403")
+	case strings.Contains(lower, "private video") || strings.Contains(lower, "members-only"):
+		return wrap(errYtDlpPrivateContent, "This content requires a different account or membership")
+	case strings.Contains(lower, "video unavailable") ||
+		strings.Contains(lower, "this video is unavailable") ||
+		strings.Contains(lower, "content isn't available"):
+		return wrap(errYtDlpUnavailable, "This content is not currently available")
+	case strings.Contains(lower, "not available from your location") ||
+		strings.Contains(lower, "geo") && strings.Contains(lower, "restricted"):
+		return wrap(errYtDlpGeoRestricted, "This content is geo-restricted")
+	case strings.Contains(lower, "unsupported url"):
+		return wrap(errYtDlpUnsupportedURL, "This URL is not supported by yt-dlp")
+	case strings.Contains(lower, "requested format is not available") ||
+		strings.Contains(lower, "no video formats found"):
+		return wrap(errYtDlpFormatMissing, "No compatible format was available for this download attempt")
+	case strings.Contains(lower, "ffmpeg is not installed") ||
+		strings.Contains(lower, "ffprobe and ffmpeg not found"):
+		return wrap(errYtDlpFFmpegMissing, "ffmpeg is required for the selected download format")
+	case strings.Contains(lower, "javascript runtime") ||
+		strings.Contains(lower, "js challenge providers") && strings.Contains(lower, "unavailable"):
+		return wrap(errYtDlpRuntimeMissing, "No supported JavaScript runtime is available for this attempt")
+	case strings.Contains(lower, "timed out") ||
+		strings.Contains(lower, "timeout") ||
+		strings.Contains(lower, "temporary failure") ||
+		strings.Contains(lower, "connection reset"):
+		return wrap(errYtDlpNetwork, "The upstream service temporarily failed while downloading")
+	case strings.Contains(lower, "unable to extract") ||
+		strings.Contains(lower, "extractorerror"):
+		return wrap(errYtDlpExtractor, "yt-dlp extractor could not parse this content")
+	case trimmed != "":
+		return wrap(errYtDlpExtractor, trimmed)
+	default:
+		return &ytdlpAttemptError{
+			Code:   errYtDlpExtractor,
+			Reason: "yt-dlp download failed",
+			Cause:  runErr,
+		}
+	}
+}
+
+func userFacingYtDlpError(err error, caps ytdlpCapabilities) error {
+	attemptErr := extractAttemptError(err)
+	if attemptErr == nil {
+		return err
+	}
+
+	switch attemptErr.Code {
+	case errYtDlpBotChallenge, errYtDlpLoginRequired:
+		if caps.hasCookies && !caps.cookiesFresh {
+			return errors.New("YouTube session expired. Refresh cookies.txt and try again")
+		}
+		if caps.hasCookies {
+			return errors.New("YouTube requires a valid logged-in session. Refresh cookies.txt and try again")
+		}
+		return errors.New("YouTube blocked the request and needs a valid session or fresher access mode")
+	case errYtDlpRateLimited:
+		if caps.hasCookies && !caps.cookiesFresh {
+			return errors.New("YouTube rejected the current session. Refresh cookies.txt or wait a bit and try again")
+		}
+		return errors.New("YouTube is rate-limiting or rejecting this request right now")
+	case errYtDlpPrivateContent:
+		return errors.New("This content needs a different account, membership, or private access")
+	case errYtDlpUnavailable:
+		return errors.New("This content is not currently available")
+	case errYtDlpGeoRestricted:
+		return errors.New("This content is geo-restricted on the current server")
+	case errYtDlpFFmpegMissing:
+		return errors.New("ffmpeg is missing for the selected media format")
+	case errYtDlpRuntimeMissing:
+		return errors.New("A supported JavaScript runtime is missing for this download")
+	case errYtDlpFormatMissing:
+		return errors.New("No compatible media format was available for this server")
+	case errYtDlpUnsupportedURL:
+		return errors.New("This URL is not supported for yt-dlp playback")
+	default:
+		return err
+	}
+}
+
+func buildMetadataStrategies(isYouTube bool, caps ytdlpCapabilities) []ytdlpStrategy {
+	strategies := []ytdlpStrategy{{name: "default-metadata"}}
+	if !isYouTube {
+		return strategies
+	}
+
+	variants := youtubeStrategyVariants(
+		ytdlpStrategy{name: "youtube-metadata"},
+		caps,
+		true,
+	)
+	return preferAndFilterStrategies(
+		"metadata",
+		variants,
+		preferredStrategyCacheKey("metadata", true, false),
+	)
+}
+
+func buildDownloadStrategies(track *state.Track, isYouTube bool, caps ytdlpCapabilities) []ytdlpStrategy {
+	if track.Video {
+		return buildVideoDownloadStrategies(isYouTube, caps)
+	}
+	return buildAudioDownloadStrategies(isYouTube, caps)
+}
+
+func buildAudioDownloadStrategies(isYouTube bool, caps ytdlpCapabilities) []ytdlpStrategy {
+	formats := []ytdlpStrategy{
+		{
+			name:        "audio-best",
+			format:      "bestaudio[ext=m4a]/bestaudio/best",
+			audioFormat: chooseAudioFormat(caps),
+		},
+		{
+			name:        "audio-relaxed",
+			format:      "ba/bestaudio/best",
+			audioFormat: chooseAudioFormat(caps),
+		},
+	}
+
+	if !isYouTube {
+		return formats
+	}
+
+	var out []ytdlpStrategy
+	for _, authVariant := range youtubeStrategyVariants(ytdlpStrategy{}, caps, false) {
+		for _, formatVariant := range formats {
+			combined := formatVariant
+			combined.name = formatVariant.name + "-" + authVariant.name
+			combined.useCookies = authVariant.useCookies
+			combined.useImpersonation = authVariant.useImpersonation
+			combined.useExtractorArgs = authVariant.useExtractorArgs
+			combined.useRemoteEJS = authVariant.useRemoteEJS
+			combined.useNoJSRuntimes = authVariant.useNoJSRuntimes
+			combined.runtimeName = authVariant.runtimeName
+			combined.userAgent = authVariant.userAgent
+			out = append(out, combined)
+		}
+	}
+
+	return preferAndFilterStrategies(
+		"download",
+		out,
+		preferredStrategyCacheKey("download", true, false),
+	)
+}
+
+func buildVideoDownloadStrategies(isYouTube bool, caps ytdlpCapabilities) []ytdlpStrategy {
+	formats := []ytdlpStrategy{
+		{
+			name:   "video-combined-18",
+			format: "18/b[height<=360]/best[height<=360]/best",
+		},
+		{
+			name:   "video-combined-1080",
+			format: "best[height<=1080]/best",
+		},
+	}
+	if caps.hasFFmpeg {
+		formats = append(formats,
+			ytdlpStrategy{
+				name:   "video-merged-1080",
+				format: "bestvideo*[height<=1080]+bestaudio/best[height<=1080]/best",
+			},
+		)
+	}
+
+	if !isYouTube {
+		return formats
+	}
+
+	var out []ytdlpStrategy
+	for _, authVariant := range youtubeStrategyVariants(ytdlpStrategy{}, caps, false) {
+		for _, formatVariant := range formats {
+			combined := formatVariant
+			combined.name = formatVariant.name + "-" + authVariant.name
+			combined.useCookies = authVariant.useCookies
+			combined.useImpersonation = authVariant.useImpersonation
+			combined.useExtractorArgs = authVariant.useExtractorArgs
+			combined.useRemoteEJS = authVariant.useRemoteEJS
+			combined.useNoJSRuntimes = authVariant.useNoJSRuntimes
+			combined.runtimeName = authVariant.runtimeName
+			combined.userAgent = authVariant.userAgent
+			out = append(out, combined)
+		}
+	}
+
+	return preferAndFilterStrategies(
+		"download",
+		out,
+		preferredStrategyCacheKey("download", true, true),
+	)
+}
+
+func youtubeStrategyVariants(
+	base ytdlpStrategy,
+	caps ytdlpCapabilities,
+	includeNoJS bool,
+) []ytdlpStrategy {
+	runtimeName := firstRuntimeName(caps)
+	variants := []ytdlpStrategy{
+		mergeStrategy(base, ytdlpStrategy{name: "guest"}),
+		mergeStrategy(base, ytdlpStrategy{
+			name:             "guest-browser",
+			useImpersonation: true,
+			useExtractorArgs: true,
+			useRemoteEJS:     runtimeName != "",
+			runtimeName:      runtimeName,
+			userAgent:        defaultChromeUserAgent(),
+		}),
+	}
+
+	if caps.hasCookies {
+		variants = append(variants,
+			mergeStrategy(base, ytdlpStrategy{name: "cookies", useCookies: true}),
+			mergeStrategy(base, ytdlpStrategy{
+				name:             "cookies-browser",
+				useCookies:       true,
+				useImpersonation: true,
+				useExtractorArgs: true,
+				useRemoteEJS:     runtimeName != "",
+				runtimeName:      runtimeName,
+				userAgent:        defaultChromeUserAgent(),
+			}),
+		)
+		if includeNoJS {
+			variants = append(variants,
+				mergeStrategy(base, ytdlpStrategy{
+					name:             "cookies-no-js",
+					useCookies:       true,
+					useImpersonation: true,
+					userAgent:        defaultChromeUserAgent(),
+					useNoJSRuntimes:  true,
+				}),
+			)
+		}
+	}
+
+	return variants
+}
+
+func mergeStrategy(base, override ytdlpStrategy) ytdlpStrategy {
+	merged := base
+	if override.name != "" {
+		if merged.name != "" {
+			merged.name += "-" + override.name
+		} else {
+			merged.name = override.name
+		}
+	}
+	if override.format != "" {
+		merged.format = override.format
+	}
+	if override.audioFormat != "" {
+		merged.audioFormat = override.audioFormat
+	}
+	merged.useCookies = override.useCookies
+	merged.useImpersonation = override.useImpersonation
+	merged.useExtractorArgs = override.useExtractorArgs
+	merged.useRemoteEJS = override.useRemoteEJS
+	merged.useNoJSRuntimes = override.useNoJSRuntimes
+	if override.runtimeName != "" {
+		merged.runtimeName = override.runtimeName
+	}
+	if override.userAgent != "" {
+		merged.userAgent = override.userAgent
+	}
+	if override.concurrentParts > 0 {
+		merged.concurrentParts = override.concurrentParts
+	}
+	return merged
+}
+
+func chooseAudioFormat(caps ytdlpCapabilities) string {
+	if caps.hasFFmpeg {
+		return "mp3"
+	}
+	return ""
+}
+
+func firstRuntimeName(caps ytdlpCapabilities) string {
+	if len(caps.runtimeNames) == 0 {
+		return ""
+	}
+	return caps.runtimeNames[0]
 }
 
 func (y *YtdlpPlatform) Download(
@@ -240,6 +845,56 @@ func (y *YtdlpPlatform) Download(
 	}
 
 	gologging.InfoF("YtDlp: Downloading %s", track.Title)
+	caps := getYtDlpCapabilities()
+	isYouTube := y.isYouTubeURL(track.URL)
+	strategies := buildDownloadStrategies(track, isYouTube, caps)
+	preferredKey := preferredStrategyCacheKey("download", isYouTube, track.Video)
+
+	var lastErr error
+	for _, strat := range strategies {
+		path, err := y.downloadWithStrategy(ctx, track, strat, caps, isYouTube)
+		if err == nil {
+			markStrategySuccess("download", preferredKey, strat)
+			gologging.InfoF("YtDlp: Successfully downloaded %s via strategy %s", path, strat.name)
+			return path, nil
+		}
+
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return "", err
+		}
+
+		lastErr = err
+		attemptErr := extractAttemptError(err)
+		markStrategyCooldown("download", strat, attemptErr)
+		if isYouTube && shouldEscalateYouTubeStrategy(attemptErr) {
+			gologging.WarnF("YtDlp: escalating YouTube strategy after %s failed: %v", strat.name, err)
+			continue
+		}
+		if attemptErr != nil && isRetryableYtDlpCode(attemptErr.Code) {
+			gologging.WarnF("YtDlp: retryable strategy failure %s: %v", strat.name, err)
+			continue
+		}
+		break
+	}
+
+	if lastErr != nil {
+		return "", userFacingYtDlpError(lastErr, caps)
+	}
+
+	return "", errors.New("yt-dlp download failed without a classified error")
+}
+
+func (y *YtdlpPlatform) downloadWithStrategy(
+	ctx context.Context,
+	track *state.Track,
+	strat ytdlpStrategy,
+	caps ytdlpCapabilities,
+	isYouTube bool,
+) (string, error) {
+	safeURL, err := sanitizeMediaURL(track.URL)
+	if err != nil {
+		return "", errUnsafeURL
+	}
 
 	args := []string{
 		"--no-playlist",
@@ -248,40 +903,40 @@ func (y *YtdlpPlatform) Download(
 		"--no-warnings",
 		"--ignore-errors",
 		"--no-check-certificate",
-		"--remote-components", "ejs:github",
-		"--js-runtimes", "node",
 		"-q",
 		"-o", getPath(track, ".%(ext)s"),
 	}
 
-	// Format selection
-	if track.Video {
-		args = append(
-			args,
-			"-f",
-			"(b[height>=360][height<=1080]/bv*[height>=360][height<=1080]/bv*)+(ba[abr>=180][abr<=360]/ba)/b",
-		)
+	if strat.concurrentParts > 0 {
+		args = append(args, "--concurrent-fragments", fmt.Sprintf("%d", strat.concurrentParts))
 	} else {
-		args = append(args,
-			"-f", "ba[abr>=180][abr<=360]/ba",
-			"-x",
-			"--concurrent-fragments", "4",
-		)
+		args = append(args, "--concurrent-fragments", "4")
 	}
 
-	// Cookies (YouTube only)
-	if y.isYouTubeURL(track.URL) {
-		args = append(args, "--cookies", "cookies.txt")
+	if strat.format != "" {
+		args = append(args, "-f", strat.format)
 	}
 
-	safeURL, err := sanitizeMediaURL(track.URL)
-	if err != nil {
-		return "", errUnsafeURL
+	if !track.Video {
+		if strat.audioFormat != "" && caps.hasFFmpeg {
+			args = append(args, "-x", "--audio-format", strat.audioFormat)
+		}
+	}
+
+	if isYouTube {
+		args = y.appendYouTubeAuthArgs(args, strat, caps)
 	}
 
 	args = append(args, "--", safeURL)
 
+	gologging.InfoF(
+		"YtDlp: Running download strategy %s: yt-dlp %s",
+		strat.name,
+		quoteArgs(args),
+	)
+
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	cmd.Dir = caps.workDir
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -290,73 +945,77 @@ func (y *YtdlpPlatform) Download(
 	if err := cmd.Run(); err != nil {
 		errStr := strings.TrimSpace(stderr.String())
 		outStr := strings.TrimSpace(stdout.String())
-
 		gologging.ErrorF(
-			"YtDlp: Download failed for %s: %v\nSTDOUT:\n%s\nSTDERR:\n%s",
-			track.URL, err, outStr, errStr,
+			"YtDlp: Download strategy %s failed for %s. System Err: %v\n--- RAW YT-DLP STDERR ---\n%s\n--- RAW YT-DLP STDOUT ---\n%s\n-----------------------",
+			strat.name,
+			track.URL,
+			err,
+			errStr,
+			outStr,
 		)
 		findAndRemove(track)
 
-		if errors.Is(err, context.Canceled) ||
-			errors.Is(err, context.DeadlineExceeded) {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return "", err
 		}
 
-		return "", fmt.Errorf("yt-dlp error: %w", err)
+		return "", classifyYtDlpError(joinStdStreams(errStr, outStr), err)
 	}
 
 	path := findFile(track)
 	if path == "" {
-		return "", errors.New("yt-dlp did not return output file path")
+		return "", &ytdlpAttemptError{
+			Code:   errYtDlpExtractor,
+			Reason: "yt-dlp finished without producing an output file",
+		}
 	}
 
-	gologging.InfoF("YtDlp: Successfully downloaded %s", path)
 	return path, nil
 }
 
 // extractMetadata uses yt-dlp to extract video/audio metadata
 func (y *YtdlpPlatform) extractMetadata(urlStr string) (*ytdlpInfo, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
 	safeURL, err := sanitizeMediaURL(urlStr)
 	if err != nil {
 		return nil, errUnsafeURL
 	}
+	cacheKey := "metadata:" + strings.ToLower(safeURL)
+	if cached, ok := ytdlpMetadataCache.Get(cacheKey); ok && cached != nil {
+		return cached, nil
+	}
+	caps := getYtDlpCapabilities()
+	isYouTube := y.isYouTubeURL(urlStr)
+	strategies := buildMetadataStrategies(isYouTube, caps)
+	preferredKey := preferredStrategyCacheKey("metadata", isYouTube, false)
 
-	args := []string{
-		"-j",
-		"--flat-playlist",
-		"--no-warnings",
-		"--no-check-certificate",
-		"--remote-components", "ejs:github",
-		"--js-runtimes", "node",
+	var output string
+	var lastErr error
+	var successStrategy ytdlpStrategy
+	for _, strat := range strategies {
+		result, err := y.extractMetadataWithStrategy(safeURL, strat, caps, isYouTube)
+		if err == nil {
+			output = result
+			lastErr = nil
+			successStrategy = strat
+			break
+		}
+		lastErr = err
+		attemptErr := extractAttemptError(err)
+		markStrategyCooldown("metadata", strat, attemptErr)
+		if isYouTube && shouldEscalateYouTubeStrategy(attemptErr) {
+			continue
+		}
+		if attemptErr != nil && isRetryableYtDlpCode(attemptErr.Code) {
+			continue
+		}
+		break
 	}
 
-	// Add cookies only for YouTube
-	if y.isYouTubeURL(urlStr) {
-		args = append(args, "--cookies", "cookies.txt")
+	if lastErr != nil {
+		return nil, fmt.Errorf("metadata extraction failed: %w", lastErr)
 	}
+	markStrategySuccess("metadata", preferredKey, successStrategy)
 
-	args = append(args, "--", safeURL)
-
-	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		errStr := stderr.String()
-		gologging.ErrorF(
-			"YtDlp: Metadata extraction failed: %v\n%s",
-			err,
-			errStr,
-		)
-		return nil, fmt.Errorf("metadata extraction failed: %w", err)
-	}
-
-	output := stdout.String()
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 
 	// Handle playlists (multiple JSON objects)
@@ -377,6 +1036,7 @@ func (y *YtdlpPlatform) extractMetadata(urlStr string) (*ytdlpInfo, error) {
 			return nil, errors.New("no valid entries found in playlist")
 		}
 
+		ytdlpMetadataCache.Set(cacheKey, &info)
 		return &info, nil
 	}
 
@@ -387,7 +1047,80 @@ func (y *YtdlpPlatform) extractMetadata(urlStr string) (*ytdlpInfo, error) {
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
+	ytdlpMetadataCache.Set(cacheKey, &info)
 	return &info, nil
+}
+
+func (y *YtdlpPlatform) extractMetadataWithStrategy(
+	safeURL string,
+	strat ytdlpStrategy,
+	caps ytdlpCapabilities,
+	isYouTube bool,
+) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	args := []string{
+		"-j",
+		"--flat-playlist",
+		"--no-warnings",
+		"--no-check-certificate",
+	}
+
+	if isYouTube {
+		args = y.appendYouTubeAuthArgs(args, strat, caps)
+	}
+
+	args = append(args, "--", safeURL)
+
+	gologging.InfoF(
+		"YtDlp: Running metadata strategy %s: yt-dlp %s",
+		strat.name,
+		quoteArgs(args),
+	)
+
+	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	cmd.Dir = caps.workDir
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		errStr := strings.TrimSpace(stderr.String())
+		outStr := strings.TrimSpace(stdout.String())
+		gologging.ErrorF(
+			"YtDlp: Metadata strategy %s failed. System Err: %v\n--- RAW YT-DLP STDERR ---\n%s\n--- RAW YT-DLP STDOUT ---\n%s\n-----------------------",
+			strat.name,
+			err,
+			errStr,
+			outStr,
+		)
+		return "", classifyYtDlpError(joinStdStreams(errStr, outStr), err)
+	}
+
+	return stdout.String(), nil
+}
+
+func joinStdStreams(stderr, stdout string) string {
+	stderr = strings.TrimSpace(stderr)
+	stdout = strings.TrimSpace(stdout)
+	switch {
+	case stderr != "" && stdout != "":
+		return stderr + "\n" + stdout
+	case stderr != "":
+		return stderr
+	default:
+		return stdout
+	}
+}
+
+func extractAttemptError(err error) *ytdlpAttemptError {
+	var attemptErr *ytdlpAttemptError
+	if errors.As(err, &attemptErr) {
+		return attemptErr
+	}
+	return nil
 }
 
 // infoToTrack converts yt-dlp info to Track
@@ -397,7 +1130,6 @@ func (y *YtdlpPlatform) infoToTrack(
 ) *state.Track {
 	duration := int(info.Duration)
 
-	// Use original_url if available, otherwise webpage_url
 	trackURL := info.URL
 	if info.OriginalURL != "" {
 		trackURL = info.OriginalURL
