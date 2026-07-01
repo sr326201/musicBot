@@ -927,8 +927,8 @@ spt_result: |
   Upload: <code>{ul_mbps} Mbps</code>
 
 start_private: "Hello {user}, My name is {bot}.\n\nI'm a telegram streaming bot with some useful features. Supporting platforms like Youtube, Spotify, JioSaavn, Soundcloud etc.\n\nFeel free to add me to your groups."
-start_private_sudo: "Hello {user}! You have been identified as a **Sudo** user. ⚡️\nYou have high-level administrative access and can use the bot's system and monitoring commands. Glad to have you on the management team!"
-start_private_owner: "Hello Boss! 👑 You are the owner of this bot.\nFull control of all settings, database, and sensitive commands is in your hands. Whatever you command shall be done!"
+start_private_sudo: "Hello {user}! You have been identified as a <b>Sudo</b> user. ⚡️\nYou have high-level administrative access and can use the bot's system and monitoring commands. Glad to have you on the management team!"
+start_private_owner: "Hello Boss! 👑\n<b>Owner mode</b> is active.\nFull control of settings, database, and sensitive commands is in your hands."
 
 start_group: "<b>💫 I’m here!</b> Try a command… if you think you can handle me 😉"
 
@@ -947,6 +947,7 @@ stream_now_playing: |
 # 👑 Sudo / Owner Join Messages
 sudo_join_owner: "👑 {user} — owner of {bot} — just entered the chat."
 sudo_join_sudo: "🛡️ {user}, a sudo user of {bot}, just joined the chat."
+owner_group_join_request: "🚨 <b>Bot added to a new group</b>\n\n<b>Group:</b> {group_name}\n<b>Group ID:</b> <code>{group_id}</code>\n<b>Status:</b> Pending approval"
 
 supergroup_needed: |
   This chat (ID: <code>{chat_id}</code>) is not a SuperGroup yet.
@@ -990,8 +991,47 @@ help_owner: |
   <b>/eval</b> - Execute Go code snippets
   <b>/maintenance</b> — Manage the bot’s maintenance mode
   <b>/restart</b> — Restart the bot
+  <b>/ownerpanel</b> - Open the owner management panel
   <b>/sh</b> - Run shell commands
   </blockquote>
+
+owner_panel_main: |
+  👑 <b>Owner Panel</b>
+
+  <b>Groups:</b> {groups_total} total | 🟢 {groups_approved} approved | 🔴 {groups_pending} pending
+  <b>Users:</b> {users_total} served | <b>Sudoers:</b> {sudo_total}
+  <b>Blacklist:</b> {blocked_users} users | {blocked_chats} chats
+  <b>Maintenance:</b> {maint_status}
+  {maint_reason}
+
+  Use the buttons below to jump to the main management areas.
+owner_panel_no_reason: "<i>No reason set.</i>"
+owner_panel_back: "⬅️ Back to Panel"
+owner_panel_closed: "✅ <b>Owner panel closed.</b>"
+owner_panel_refreshed: "Refreshed"
+owner_panel_load_fail: "❌ Failed to load owner panel: <code>{error}</code>"
+owner_panel_btn_groups: "👥 Groups"
+owner_panel_btn_users: "👤 Users"
+owner_panel_btn_sudo: "⚡ Sudo"
+owner_panel_btn_stats: "📊 Stats"
+owner_panel_btn_maintenance: "🛠 Maintenance"
+owner_panel_btn_system: "⚙️ System"
+owner_panel_btn_refresh: "🔄 Refresh"
+owner_panel_section_groups: "👥 Group management\nUse <code>{groups_cmd}</code> to review approvals and current group status."
+owner_panel_section_users: "👤 User controls\nUse <code>{blocked_cmd}</code>, <code>/blockuser</code>, and <code>/unblockuser</code> for user moderation."
+owner_panel_section_sudo: "⚡ Sudo management\nUse <code>{sudo_list_cmd}</code>, <code>{sudo_add_cmd}</code>, and <code>{sudo_del_cmd}</code> to manage privileged users."
+owner_panel_section_stats: "📊 Monitoring\nUse <code>{stats_cmd}</code> for system statistics and <code>{active_cmd}</code> for active sessions."
+owner_panel_section_maintenance: "🛠 Maintenance\nUse <code>{maint_cmd}</code> to enable, disable, or update maintenance status and reason."
+owner_panel_section_system: "⚙️ System tools\nUse <code>{restart_cmd}</code>, <code>{broadcast_cmd}</code>, <code>{logs_cmd}</code>, <code>{logger_cmd}</code>, <code>{shell_cmd}</code>, and <code>{eval_cmd}</code>."
+owner_panel_maintenance: |
+  🛠 <b>Maintenance Control</b>
+
+  <b>Status:</b> {status}
+
+  Use the button below to toggle maintenance mode.
+  For advanced options (reason, etc.) use <code>{cmd} on [reason]</code> or <code>{cmd} off</code>.
+owner_panel_maint_btn_enable: "🟢 Enable Maintenance"
+owner_panel_maint_btn_disable: "🔴 Disable Maintenance"
 
 help_sudo: |
   ⚡ <b>Sudoer Commands</b>
@@ -1057,3 +1097,28 @@ help_public: |
   <b>/json</b> - Show message JSON structure
   <b>/sudolist</b> - View sudo user list
   </blockquote>
+wait_approval: "⚠️ <b>This group has not been approved by management yet.</b>\nPlease wait until your group is reviewed and approved."
+allgroups_empty: "📊 <b>The bot has not joined any groups yet, or the database is empty.</b>"
+allgroups_title: "📊 <b>Bot Groups</b>\n\n<b>Total:</b> {total}\n🟢 <b>Approved:</b> {approved}\n🔴 <b>Pending:</b> {pending}"
+
+approval_group_activated: "🎉 <b>Bot has been activated successfully in this group.</b>\n\n⚙️ All music/video playback features and commands are now available here.\n💡 DM me for help if needed."
+approval_group_denied: "❌ <b>This group request was rejected by management.</b>\nThe bot is leaving the group now."
+
+approval_toggle_denied: "❌ Group rejected and scheduled to leave"
+approval_error_loading_detail: "❌ Failed to load approval data: <code>{error}</code>"
+approval_btn_approve: "✅ Approve Group"
+approval_btn_deny: "❌ Reject & Leave"
+approval_owner_request_resolved: "✅ Request updated.\n<b>Status:</b> {status}"
+approval_owner_status_approved: "Approved"
+approval_owner_status_denied: "Rejected"
+blacklist_block_user_fail: "⚠️ Failed to block user: {error}"
+blacklist_block_chat_fail: "⚠️ Failed to block chat: {error}"
+blacklist_list_none: "• None"
+
+err_voicechat_join_timeout: |
+  ⚠️ <b>Could not connect to the voice chat.</b>
+
+  The bot tried multiple times but Telegram servers didn't respond in time.
+
+  <i>➡️ Please end the current voice chat and start a new one, then try again.</i>
+  <i>➡️ If this keeps happening, restart the bot or wait a few minutes.</i>

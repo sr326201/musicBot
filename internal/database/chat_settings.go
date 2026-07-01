@@ -25,8 +25,9 @@ import (
 )
 
 type RTMPConfig struct {
-	URL string `bson:"rtmp_url"`
-	Key string `bson:"rtmp_key"`
+	URL      string `bson:"rtmp_url"`
+	Key      string `bson:"rtmp_key"`
+	Platform string `bson:"rtmp_platform"`
 }
 
 type ChatSettings struct {

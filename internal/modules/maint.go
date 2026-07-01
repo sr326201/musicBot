@@ -173,26 +173,48 @@ func applyMaintenanceState(m *tg.NewMessage, enable bool, reason string) error {
 	return tg.ErrEndGroup
 }
 
-func notifyMaintenanceStart(c *tg.Client, reason string) {
-	for chatID := range core.GetAllRooms() {
-		maintCancel.Lock()
-		cancelled := maintCancel.cancel
-		maintCancel.Unlock()
+// func notifyMaintenanceStart(c *tg.Client, reason string) {
+// 	for chatID := range core.GetAllRooms() {
+// 		maintCancel.Lock()
+// 		cancelled := maintCancel.cancel
+// 		maintCancel.Unlock()
 
-		if cancelled {
-			break
+// 		if cancelled {
+// 			break
+// 		}
+
+// 		core.DeleteRoom(chatID)
+// 		msg := F(chatID, "maint_entering")
+// 		if reason != "" {
+// 			msg += "\n" + F(
+// 				chatID,
+// 				"maint_reason",
+// 				locales.Arg{"reason": reason},
+// 			)
+// 		}
+// 		c.SendMessage(chatID, msg)
+// 		time.Sleep(time.Second)
+// 	}
+// }
+
+func notifyMaintenanceStart(c *tg.Client, reason string) {
+	chats, _ := database.ServedChats()
+
+	for _, chatID := range chats {
+		approved, _ := database.IsApprovedChat(chatID)
+		if !approved {
+			continue
 		}
 
-		core.DeleteRoom(chatID)
 		msg := F(chatID, "maint_entering")
 		if reason != "" {
-			msg += "\n" + F(
-				chatID,
-				"maint_reason",
-				locales.Arg{"reason": reason},
-			)
+			msg += "\n" + F(chatID, "maint_reason", locales.Arg{"reason": reason})
 		}
 		c.SendMessage(chatID, msg)
 		time.Sleep(time.Second)
+	}
+
+	for chatID := range core.GetAllRooms() {
+		core.DeleteRoom(chatID)
 	}
 }

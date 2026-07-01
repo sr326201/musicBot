@@ -40,7 +40,7 @@ func handleBlockUser(m *telegram.NewMessage) error {
 		return telegram.ErrEndGroup
 	}
 	if err := database.AddBlacklistedUser(userID); err != nil {
-		m.Reply("Failed to block user: " + err.Error())
+		m.Reply(F(m.ChannelID(), "blacklist_block_user_fail", locales.Arg{"error": err.Error()}))
 		return telegram.ErrEndGroup
 	}
 	m.Reply(F(m.ChannelID(), "blacklist_block_user_success", locales.Arg{"id": userID}))
@@ -77,7 +77,7 @@ func handleBlockChat(m *telegram.NewMessage) error {
 		return telegram.ErrEndGroup
 	}
 	if err := database.AddBlacklistedChat(chatID); err != nil {
-		m.Reply("Failed to block chat: " + err.Error())
+		m.Reply(F(m.ChannelID(), "blacklist_block_chat_fail", locales.Arg{"error": err.Error()}))
 		return telegram.ErrEndGroup
 	}
 	m.Reply(F(m.ChannelID(), "blacklist_block_chat_success", locales.Arg{"id": chatID}))
@@ -123,7 +123,8 @@ func handleBlacklisted(m *telegram.NewMessage) error {
 	b.WriteString("\n")
 
 	if len(chats) == 0 {
-		b.WriteString("• None\n")
+		b.WriteString(F(m.ChannelID(), "blacklist_list_none"))
+		b.WriteString("\n")
 	} else {
 		for i, id := range chats {
 			b.WriteString(strconv.Itoa(i+1) + ". <code>" + strconv.FormatInt(id, 10) + "</code>\n")
@@ -135,7 +136,7 @@ func handleBlacklisted(m *telegram.NewMessage) error {
 	b.WriteString("\n")
 
 	if len(users) == 0 {
-		b.WriteString("• None")
+		b.WriteString(F(m.ChannelID(), "blacklist_list_none"))
 	} else {
 		for i, id := range users {
 			b.WriteString(strconv.Itoa(i+1) + ". <code>" + strconv.FormatInt(id, 10) + "</code>\n")

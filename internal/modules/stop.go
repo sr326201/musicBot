@@ -57,8 +57,6 @@ func cstopHandler(m *telegram.NewMessage) error {
 
 func handleStop(m *telegram.NewMessage, cplay bool) error {
 
-	reactToCommandMessage(m, "👍")
-
 	r, err := getEffectiveRoom(m, cplay)
 	if err != nil {
 		m.Reply(err.Error())
@@ -68,6 +66,8 @@ func handleStop(m *telegram.NewMessage, cplay bool) error {
 		m.Reply(F(m.ChannelID(), "room_no_active"))
 		return telegram.ErrEndGroup
 	}
+
+	reactToCommandMessage(m, "👍")
 
 	// isPaused := r.IsPaused()
 	// isMuted := r.IsMuted()

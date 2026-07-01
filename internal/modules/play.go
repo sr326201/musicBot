@@ -185,12 +185,12 @@ func cplayHandler(m *tg.NewMessage) error { return handlePlay(m, &playOpts{CPlay
 func handlePlay(m *tg.NewMessage, opts *playOpts) error {
 	chatID := m.ChannelID()
 
-	reactToCommandMessage(m, "👀")
-
 	if !canUsePlayCommand(m, chatID) {
-		m.Reply(F(chatID, "playmode_restricted"))
+		// m.Reply(F(chatID, "playmode_restricted"))
 		return tg.ErrEndGroup
 	}
+
+	reactToCommandMessage(m, "👀")
 
 	room, searchMsg, err := prepareRoomAndSearchMessage(m, opts.CPlay)
 	if err != nil {
@@ -606,6 +606,7 @@ func playTracksAndRespond(
 
 	for i, track := range tracks {
 		track.Requester = mention
+		track.RequesterID = m.SenderID()
 
 		filePath := ""
 		if i == 0 && (!isActive || force) {
@@ -843,6 +844,14 @@ func playTrackWithRetry(
 					playMaxRetries,
 				) + " attempts. Error: " + err.Error(),
 			)
+			if isPhoneJoinGroupCallTimeout(err) {
+				utils.EOR(
+					replyMsg,
+					F(replyMsg.ChannelID(), "err_voicechat_join_timeout"),
+				)
+				return err
+			}
+
 			utils.EOR(
 				replyMsg,
 				F(replyMsg.ChannelID(), "play_failed", locales.Arg{"error": err.Error()}),
@@ -911,6 +920,16 @@ func handlePlayAttemptError(
 			) + ")",
 		)
 		time.Sleep(2 * time.Second)
+		return true, nil
+	}
+
+	if isPhoneJoinGroupCallTimeout(err) {
+		gologging.Error(
+			"PhoneJoinGroupCall timeout (attempt " + utils.IntToStr(
+				attempt,
+			) + "/" + utils.IntToStr(playMaxRetries) + "). Waiting 5s before retry...",
+		)
+		time.Sleep(5 * time.Second)
 		return true, nil
 	}
 

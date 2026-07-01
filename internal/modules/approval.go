@@ -15,29 +15,14 @@ import (
 const pageSize = 8
 
 func buildGroupsKeyboard(chatID int64, page int) (*telegram.ReplyInlineMarkup, string, error) {
-	chats, err := database.ServedChats()
+	groups, totalPages, page, err := getManagedGroups(page)
 	if err != nil {
 		return nil, "", err
-	}
-
-	var groups []int64
-	for _, id := range chats {
-		if id < 0 || id >= 4000000000 {
-			groups = append(groups, id)
-		}
 	}
 
 	totalGroups := len(groups)
 	if totalGroups == 0 {
 		return nil, F(chatID, "allgroups_empty"), nil
-	}
-
-	totalPages := (totalGroups + pageSize - 1) / pageSize
-	if page < 0 {
-		page = 0
-	}
-	if page >= totalPages {
-		page = totalPages - 1
 	}
 
 	start := page * pageSize
@@ -78,8 +63,54 @@ func buildGroupsKeyboard(chatID int64, page int) (*telegram.ReplyInlineMarkup, s
 		kb.AddRow(navRow...)
 	}
 
-	text := F(chatID, "allgroups_title")
+	kb.AddRow(tg.Button.Data(F(chatID, "owner_panel_back"), "owner:main"))
+
+	approvedCount, pendingCount := countGroupApprovalStates(groups)
+	text := F(chatID, "allgroups_title", locales.Arg{
+		"total":    totalGroups,
+		"approved": approvedCount,
+		"pending":  pendingCount,
+	})
 	return kb.Build(), text, nil
+}
+
+func getManagedGroups(page int) ([]int64, int, int, error) {
+	chats, err := database.ServedChats()
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	var groups []int64
+	for _, id := range chats {
+		if id < 0 || id >= 4000000000 {
+			groups = append(groups, id)
+		}
+	}
+
+	totalPages := 1
+	if len(groups) > 0 {
+		totalPages = (len(groups) + pageSize - 1) / pageSize
+	}
+	if page < 0 {
+		page = 0
+	}
+	if page >= totalPages {
+		page = totalPages - 1
+	}
+
+	return groups, totalPages, page, nil
+}
+
+func countGroupApprovalStates(groups []int64) (approvedCount, pendingCount int) {
+	for _, groupID := range groups {
+		approved, _ := database.IsApprovedChat(groupID)
+		if approved {
+			approvedCount++
+		} else {
+			pendingCount++
+		}
+	}
+	return approvedCount, pendingCount
 }
 
 func handleAllGroups(m *telegram.NewMessage) error {
@@ -89,7 +120,7 @@ func handleAllGroups(m *telegram.NewMessage) error {
 
 	markup, text, err := buildGroupsKeyboard(m.ChatID(), 0)
 	if err != nil {
-		m.Reply("❌ Error: " + err.Error())
+		m.Reply(F(m.ChatID(), "approval_error_loading_detail", locales.Arg{"error": err.Error()}))
 		return telegram.ErrEndGroup
 	}
 
@@ -143,15 +174,9 @@ func handleGroupManagementCallbacks(cb *telegram.CallbackQuery) error {
 			return telegram.ErrEndGroup
 		}
 
-		approved, _ := database.IsApprovedChat(chatID)
-		if approved {
-			database.RemoveApprovedChat(chatID)
-			cb.Answer(F(cb.ChatID, "approval_toggle_removed"), &telegram.CallbackOptions{})
-		} else {
-			database.AddApprovedChat(chatID)
-			cb.Answer(F(cb.ChatID, "approval_toggle_added"), &telegram.CallbackOptions{})
-
-			cb.Client.SendMessage(chatID, F(chatID, "approval_group_activated"), &telegram.SendOptions{ParseMode: "HTML"})
+		if err := toggleGroupApproval(cb, chatID); err != nil {
+			cb.Answer(F(cb.ChatID, "approval_error_loading"), &telegram.CallbackOptions{Alert: true})
+			return telegram.ErrEndGroup
 		}
 
 		markup, text, err := buildGroupsKeyboard(cb.ChatID, page)
@@ -163,10 +188,74 @@ func handleGroupManagementCallbacks(cb *telegram.CallbackQuery) error {
 		return telegram.ErrEndGroup
 	}
 
+	if strings.HasPrefix(data, "approve_") {
+		chatID, err := strconv.ParseInt(strings.TrimPrefix(data, "approve_"), 10, 64)
+		if err != nil {
+			return telegram.ErrEndGroup
+		}
+		if err := approveGroup(cb, chatID); err != nil {
+			cb.Answer(F(cb.ChatID, "approval_error_loading"), &telegram.CallbackOptions{Alert: true})
+			return telegram.ErrEndGroup
+		}
+		cb.Edit(F(cb.ChatID, "approval_owner_request_resolved", locales.Arg{"status": F(cb.ChatID, "approval_owner_status_approved")}), &telegram.SendOptions{ParseMode: "HTML"})
+		return telegram.ErrEndGroup
+	}
+
+	if strings.HasPrefix(data, "deny_") {
+		chatID, err := strconv.ParseInt(strings.TrimPrefix(data, "deny_"), 10, 64)
+		if err != nil {
+			return telegram.ErrEndGroup
+		}
+		if err := denyGroup(cb, chatID); err != nil {
+			cb.Answer(F(cb.ChatID, "approval_error_loading"), &telegram.CallbackOptions{Alert: true})
+			return telegram.ErrEndGroup
+		}
+		cb.Edit(F(cb.ChatID, "approval_owner_request_resolved", locales.Arg{"status": F(cb.ChatID, "approval_owner_status_denied")}), &telegram.SendOptions{ParseMode: "HTML"})
+		return telegram.ErrEndGroup
+	}
+
 	if data == "noop" {
 		cb.Answer("", &telegram.CallbackOptions{})
 		return telegram.ErrEndGroup
 	}
 
 	return nil
+}
+
+func toggleGroupApproval(cb *telegram.CallbackQuery, chatID int64) error {
+	approved, _ := database.IsApprovedChat(chatID)
+	if approved {
+		if err := database.RemoveApprovedChat(chatID); err != nil {
+			return err
+		}
+		clearApprovalWarning(chatID)
+		cb.Answer(F(cb.ChatID, "approval_toggle_removed"), &telegram.CallbackOptions{})
+		return nil
+	}
+	return approveGroup(cb, chatID)
+}
+
+func approveGroup(cb *telegram.CallbackQuery, chatID int64) error {
+	if err := database.AddApprovedChat(chatID); err != nil {
+		return err
+	}
+	clearApprovalWarning(chatID)
+	cb.Answer(F(cb.ChatID, "approval_toggle_added"), &telegram.CallbackOptions{})
+	_, _ = cb.Client.SendMessage(chatID, F(chatID, "approval_group_activated"), &telegram.SendOptions{ParseMode: "HTML"})
+	return nil
+}
+
+func denyGroup(cb *telegram.CallbackQuery, chatID int64) error {
+	_ = database.RemoveApprovedChat(chatID)
+	clearApprovalWarning(chatID)
+	_, _ = cb.Client.SendMessage(chatID, F(chatID, "approval_group_denied"), &telegram.SendOptions{ParseMode: "HTML"})
+	leaveChat(cb.Client, chatID)
+	cb.Answer(F(cb.ChatID, "approval_toggle_denied"), &telegram.CallbackOptions{})
+	return nil
+}
+
+func clearApprovalWarning(chatID int64) {
+	warnedChatsMu.Lock()
+	delete(warnedChats, chatID)
+	warnedChatsMu.Unlock()
 }

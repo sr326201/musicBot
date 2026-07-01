@@ -63,7 +63,7 @@ func init() {
 }
 
 // Get or create RTMP stream for chat
-func getOrCreateRTMPStream(chatID int64, url, key string) *tg.RTMPStream {
+func getOrCreateRTMPStream(chatID int64, url, key string, platform string) *tg.RTMPStream {
 	rtmpStreamsMu.Lock()
 	defer rtmpStreamsMu.Unlock()
 
@@ -79,6 +79,7 @@ func getOrCreateRTMPStream(chatID int64, url, key string) *tg.RTMPStream {
 	stream.SetLoopCount(0)
 	stream.SetURL(url)
 	stream.SetKey(key)
+	applyProfile(stream, platform)
 
 	stream.OnError(func(chatID int64, err error) {
 		gologging.ErrorF("RTMP error in chat %d: %v", chatID, err)
@@ -99,13 +100,15 @@ func streamHandler(m *tg.NewMessage) error {
 func handleStream(m *tg.NewMessage, force bool) error {
 	chatID := m.ChannelID()
 
-	url, key, err := database.RTMP(chatID)
+	url, key, platform, err := database.RTMP(chatID)
 	if err != nil || url == "" || key == "" {
 		m.Reply(F(chatID, "rtmp_not_configured", locales.Arg{
 			"cmd": "/setrtmp",
 		}))
 		return tg.ErrEndGroup
 	}
+
+	reactToCommandMessage(m, "🫡")
 
 	parts := strings.SplitN(m.Text(), " ", 2)
 	query := ""
@@ -120,7 +123,7 @@ func handleStream(m *tg.NewMessage, force bool) error {
 		return tg.ErrEndGroup
 	}
 
-	stream := getOrCreateRTMPStream(chatID, url, key)
+	stream := getOrCreateRTMPStream(chatID, url, key, platform)
 	if stream == nil {
 		m.Reply("failed to create rtmp stream")
 		return tg.ErrEndGroup
@@ -140,7 +143,7 @@ func handleStream(m *tg.NewMessage, force bool) error {
 		searchStr = F(chatID, "searching")
 	}
 
-	replyMsg, err := m.Reply(searchStr)
+	replyMsg, err := sendPlaySticker(m, searchStr)
 	if err != nil {
 		gologging.ErrorF("Failed to send searching message: %v", err)
 		return tg.ErrEndGroup
@@ -160,6 +163,7 @@ func handleStream(m *tg.NewMessage, force bool) error {
 	track := tracks[0]
 	mention := utils.MentionHTML(m.Sender)
 	track.Requester = mention
+	track.RequesterID = m.SenderID()
 
 	// Download track
 	downloadingText := F(chatID, "play_downloading_song", locales.Arg{
@@ -292,7 +296,7 @@ func streamStatusHandler(m *tg.NewMessage) error {
 	chatID := m.ChannelID()
 
 	// Check if RTMP is configured (without exposing credentials)
-	url, _, err := database.RTMP(chatID)
+	url, _, _, err := database.RTMP(chatID)
 	if err != nil || url == "" {
 		m.Reply(F(chatID, "rtmp_not_configured", locales.Arg{
 			"cmd": "/setrtmp",
@@ -344,13 +348,14 @@ func setRTMPHandler(m *tg.NewMessage) error {
 
 	args := strings.Fields(m.Text())
 
-	if len(args) < 3 {
+	if len(args) < 4 {
 		m.Reply(F(m.ChannelID(), "rtmp_setup_usage"))
 		return tg.ErrEndGroup
 	}
 
 	cid := args[1]
-	raw := args[2]
+	platform := strings.ToLower(args[2])
+	raw := args[3]
 
 	idx := strings.LastIndex(raw, "/")
 	if idx <= 0 || idx == len(raw)-1 {
@@ -376,7 +381,14 @@ func setRTMPHandler(m *tg.NewMessage) error {
 		return tg.ErrEndGroup
 	}
 
-	if err := database.SetRTMP(targetChatID, url, key); err != nil {
+	if _, ok := platformProfiles[platform]; !ok {
+		m.Reply(F(m.ChannelID(), "rtmp_invalid_platform", locales.Arg{
+			"platforms": "kick, youtube, twitch, custom",
+		}))
+		return tg.ErrEndGroup
+	}
+
+	if err := database.SetRTMP(targetChatID, url, key, platform); err != nil {
 		m.Reply(F(m.ChannelID(), "generic_error", locales.Arg{"error": err.Error()}))
 		return tg.ErrEndGroup
 	}
@@ -385,6 +397,7 @@ func setRTMPHandler(m *tg.NewMessage) error {
 	if stream, exists := rtmpStreams[targetChatID]; exists {
 		stream.SetURL(url)
 		stream.SetKey(key)
+		applyProfile(stream, platform)
 	}
 	rtmpStreamsMu.Unlock()
 

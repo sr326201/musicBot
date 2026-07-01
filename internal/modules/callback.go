@@ -109,13 +109,16 @@ func roomHandle(cb *tg.CallbackQuery) error {
 		return tg.ErrEndGroup
 	}
 
+	//--------- check requester or admin or sudo -----------
 	track := r.Track()
-
 	isRequester := track != nil && cb.SenderID == track.RequesterID
 
-	if !isRequester && !checkHesOranother(cb, chatID) {
+	if !isRequester && !isOwnerOrSudo(cb.SenderID) {
+		opt := &tg.CallbackOptions{Alert: true}
+		cb.Answer(F(chatID, "only_requester_or_sudo"), opt)
 		return tg.ErrEndGroup
 	}
+	// ----------------- check flood -----------------
 
 	key := fmt.Sprintf("room:%d:%d", cb.Sender.ID, chatID)
 	if remaining := utils.GetFlood(key); remaining > 0 {

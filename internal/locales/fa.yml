@@ -29,28 +29,36 @@ invalid_bool: "⚠️ <b>مقدار نامعتبر است.</b>\nاز 'enable' ی
 active_chats_info: "📊 <b>چت‌های فعال:</b>\n\nتعداد <i>{count}</i> چت فعال در کل سیستم ربات وجود دارد."
 active_chats_info_with_broken: "📊 <b>چت‌های فعال:</b>\n\nتعداد <i>{count}</i> چت فعال در کل سیستم ربات وجود دارد، اما <i>{broken}</i> تای آن‌ها ممکن است در نمایش درست مشکل داشته باشند."
 
-wait_approval: "⚠️ **این گروه هنوز توسط مدیریت تایید نشده است.**\nلطفاً منتظر بمانید تا گروه شما بررسی و تایید شود."
-approval_usage_approve: "❌ **روش استفاده:**\n`/approve [آیدی عددی یا یوزرنیم گروه]`"
-approval_usage_unapprove: "❌ **روش استفاده:**\n`/unapprove [آیدی عددی یا یوزرنیم گروه]`"
-approval_invalid_chat_identifier: "❌ چت مورد نظر یافت نشد یا شناسه نامعتبر است.\n**خطا:** {error}"
-approval_approve_chat_success: "✅ گروه ` {id} ` با موفقیت تایید شد و ربات در آن فعال گردید."
+wait_approval: "⚠️ <b>اینجا هنوز توسط مدیریت تایید نشده است.</b>\nلطفاً منتظر بمانید تا گروه شما بررسی و تایید شود."
+approval_usage_approve: "❌ <b>روش استفاده:</b>\n<code>/approve [آیدی عددی یا یوزرنیم گروه]</code>"
+approval_usage_unapprove: "❌ <b>روش استفاده:</b>\n<code>/unapprove [آیدی عددی یا یوزرنیم گروه]</code>"
+approval_invalid_chat_identifier: "❌ چت مورد نظر یافت نشد یا شناسه نامعتبر است.\n<b>خطا:</b> {error}"
+approval_approve_chat_success: "✅ گروه <code>{id}</code> با موفقیت تایید شد و ربات در آن فعال گردید."
 approval_unapprove_chat_fail: "❌ لغو تاییدیه گروه با خطا مواجه شد:\n{error}"
-approval_unapprove_chat_success: "🔓 تاییدیه گروه ` {id} ` با موفقیت لغو شد."
-approval_list_title: "📋 **لیست گروه‌های تایید شده توسط مدیریت:**"
+approval_unapprove_chat_success: "🔓 تاییدیه گروه <code>{id}</code> با موفقیت لغو شد."
+approval_list_title: "📋 <b>لیست گروه‌های تایید شده توسط مدیریت:</b>"
 approval_fetch_chats_fail: "❌ خطا در دریافت لیست گروه‌های تایید شده:\n{error}"
 
-allgroups_empty: "📊 **ربات هنوز در هیچ گروهی عضو نشده است یا دیتابیس خالی است.**"
-allgroups_title: "📊 **لیست کل گروه‌های ربات:**\n\n🟢 = تایید شده | 🔴 = در انتظار تایید"
+allgroups_empty: "📊 <b>ربات هنوز در هیچ گروهی عضو نشده است یا دیتابیس خالی است.</b>"
+allgroups_title: "📊 <b>گروه‌های ربات</b>\n\n<b>مجموع:</b> {total}\n🟢 <b>تایید شده:</b> {approved}\n🔴 <b>در انتظار:</b> {pending}"
 
-approval_group_activated: "🎉 **ربات با موفقیت در این گروه فعال شد!**\n\n⚙️ هم‌اکنون تمامی قابلیت‌ها، دستورات و سیستم پخش موزیک/ویدیو برای شما در دسترس است.\n💡 برای دریافت راهنمایی پیوی پیام بده."
+approval_group_activated: "🎉 <b>ربات با موفقیت در اینجا فعال شد.</b>\n\n⚙️ هم‌اکنون تمامی قابلیت‌ها، دستورات و سیستم پخش موزیک/ویدیو برای شما در دسترس است.\n💡 برای دریافت راهنمایی پیوی پیام بده."
+approval_group_denied: "❌ <b>درخواست این گروه توسط مدیریت رد شد.</b>\nربات اکنون گروه را ترک می‌کند."
 
 approval_nav_prev: "⬅️ قبلی"
 approval_nav_next: "بعدی ➡️"
 approval_nav_page: "صفحه {page}/{total}"
 approval_toggle_removed: "🔴 گروه از لیست تایید شده‌ها حذف شد"
 approval_toggle_added: "🟢 گروه با موفقیت تایید شد"
+approval_toggle_denied: "❌ گروه رد شد و ربات آن را ترک می‌کند"
 approval_error_loading: "❌ خطا در بارگذاری صفحه"
+approval_error_loading_detail: "❌ خطا در بارگذاری اطلاعات تایید: <code>{error}</code>"
 approval_mgmt_denied: "⛔️ شما دسترسی مدیریت این بخش را ندارید!"
+approval_btn_approve: "✅ تایید گروه"
+approval_btn_deny: "❌ رد و خروج"
+approval_owner_request_resolved: "✅ درخواست به‌روزرسانی شد.\n<b>وضعیت:</b> {status}"
+approval_owner_status_approved: "تایید شد"
+approval_owner_status_denied: "رد شد"
 
 adminmode_help: |
   🛡️ <b>حالت فرمان‌های ادمین</b>
@@ -132,13 +140,16 @@ blacklist_block_user_success: "✅ کاربر مسدود شد: <code>{id}</code>
 blacklist_unblock_user_success: "✅ مسدودیت کاربر برداشته شد: <code>{id}</code>"
 blacklist_block_chat_success: "✅ چت مسدود شد: <code>{id}</code>"
 blacklist_unblock_chat_success: "✅ مسدودیت چت برداشته شد: <code>{id}</code>"
+blacklist_block_user_fail: "⚠️ مسدود کردن کاربر ناموفق بود: {error}"
 blacklist_unblock_user_fail: "⚠️ برداشتن مسدودیت کاربر ناموفق بود: {error}"
+blacklist_block_chat_fail: "⚠️ مسدود کردن چت ناموفق بود: {error}"
 blacklist_unblock_chat_fail: "⚠️ برداشتن مسدودیت چت ناموفق بود: {error}"
 blacklist_fetch_chats_fail: "⚠️ دریافت چت‌های مسدود ناموفق بود: {error}"
 blacklist_fetch_users_fail: "⚠️ دریافت کاربرهای مسدود ناموفق بود: {error}"
 blacklist_list_title: "📛 <b>لیست سیاه</b>"
 blacklist_list_chats: "💬 <b>چت‌ها:</b>"
 blacklist_list_users: "👤 <b>کاربرها:</b>"
+blacklist_list_none: "• موردی ندارد"
 
 # 🎧 CPlay (Channel Play)
 
@@ -439,7 +450,7 @@ maint_reason_updated: "✅ Maintenance reason updated.\n📝 دلیل: {reason}"
 maint_enabled: "✅ Maintenance mode has been <b>enabled</b> successfully."
 maint_enabled_reason: "✅ Maintenance mode enabled.\n📝 دلیل: {reason}"
 maint_disabled: "✅ Maintenance mode has been <b>disabled</b> successfully."
-maint_entering: "⚠️ Bot is entering maintenance mode..."
+maint_entering: "⚠️ حالت تعمیرات سرویس فعاله..."
 enabled_with_reason: "🟢 Enabled\n📝 دلیل: {reason}"
 
 move_usage: "⚠️ نحوه استفاده: <code>{cmd} [from] [to]</code>"
@@ -685,13 +696,15 @@ rtmp_status_playing: |
 
 rtmp_dm_only: "⚠️ Use this command in DM."
 
-rtmp_setup_usage: "⚙️ /setrtmp <chat_id> <rtmp_url>"
+rtmp_setup_usage: "⚙️ /setrtmp <chat_id> <platform> <rtmp_url>"
 
 generic_error: "❌ Something went wrong: <code>{error}</code>"
 
 rtmp_invalid_chat_id: "❌ Invalid chat ID. مثال: <code>-1001234567890</code>"
 
-rtmp_parse_failed: "❌ Invalid RTMP URL. Use: <code>/setrtmp <chat_id> <rtmp_url></code>"
+rtmp_invalid_platform: "❌ Invalid platform. Valid platforms are: {platforms}"
+
+rtmp_parse_failed: "❌ Invalid RTMP URL. Use: <code>/setrtmp <chat_id> <platform> <rtmp_url></code>"
 
 rtmp_streaming_not_supported: |
   ⚠️ <b>Streaming not supported</b>
@@ -963,6 +976,7 @@ stream_now_playing: |
 
 sudo_join_owner: "👑 {user} — owner of {bot} — just entered the chat."
 sudo_join_sudo: "🛡️ {user}, a sudo user of {bot}, just joined the chat."
+owner_group_join_request: "🚨 <b>ربات به گروه جدیدی اضافه شد</b>\n\n<b>نام گروه:</b> {group_name}\n<b>شناسه گروه:</b> <code>{group_id}</code>\n<b>وضعیت:</b> در انتظار تایید"
 
 supergroup_needed: |
   This chat (ID: <code>{chat_id}</code>) is not a SuperGroup yet.
@@ -1043,8 +1057,46 @@ help_owner: |
   <b>/eval</b> - اجرای تکه‌کد Go
   <b>/maintenance</b> — مدیریت حالت تعمیر و نگهداری ربات
   <b>/restart</b> — راه‌اندازی دوباره ربات
+  <b>/ownerpanel</b> - باز کردن پنل مدیریت مالک
   <b>/sh</b> - اجرای فرمان‌های شل
   </blockquote>
+owner_panel_main: |
+  👑 <b>پنل مدیریت مالک</b>
+
+  <b>گروه‌ها:</b> {groups_total} کل | 🟢 {groups_approved} تایید شده | 🔴 {groups_pending} در انتظار
+  <b>کاربران:</b> {users_total} سرویس‌گرفته | <b>سودوها:</b> {sudo_total}
+  <b>لیست سیاه:</b> {blocked_users} کاربر | {blocked_chats} چت
+  <b>تعمیر و نگهداری:</b> {maint_status}
+  {maint_reason}
+
+  از دکمه‌های زیر برای دسترسی سریع به بخش‌های اصلی مدیریت استفاده کن.
+owner_panel_no_reason: "<i>دلیلی ثبت نشده است.</i>"
+owner_panel_back: "⬅️ بازگشت به پنل"
+owner_panel_closed: "✅ <b>پنل مالک بسته شد.</b>"
+owner_panel_refreshed: "به‌روزرسانی شد"
+owner_panel_load_fail: "❌ بارگذاری پنل مالک ناموفق بود: <code>{error}</code>"
+owner_panel_btn_groups: "👥 گروه‌ها"
+owner_panel_btn_users: "👤 کاربران"
+owner_panel_btn_sudo: "⚡ سودو"
+owner_panel_btn_stats: "📊 آمار"
+owner_panel_btn_maintenance: "🛠 تعمیرات"
+owner_panel_btn_system: "⚙️ سیستم"
+owner_panel_btn_refresh: "🔄 تازه‌سازی"
+owner_panel_section_groups: "👥 مدیریت گروه‌ها\nبرای بررسی تاییدها و وضعیت گروه‌ها از <code>{groups_cmd}</code> استفاده کن."
+owner_panel_section_users: "👤 مدیریت کاربران\nبرای کنترل کاربران از <code>{blocked_cmd}</code>، <code>/blockuser</code> و <code>/unblockuser</code> استفاده کن."
+owner_panel_section_sudo: "⚡ مدیریت سودوها\nبرای مدیریت کاربران ویژه از <code>{sudo_list_cmd}</code>، <code>{sudo_add_cmd}</code> و <code>{sudo_del_cmd}</code> استفاده کن."
+owner_panel_section_stats: "📊 پایش سیستم\nبرای آمار سیستم از <code>{stats_cmd}</code> و برای نشست‌های فعال از <code>{active_cmd}</code> استفاده کن."
+owner_panel_section_maintenance: "🛠 تعمیر و نگهداری\nبرای فعال‌سازی، غیرفعال‌سازی یا تغییر دلیل از <code>{maint_cmd}</code> استفاده کن."
+owner_panel_section_system: "⚙️ ابزارهای سیستمی\nبرای مدیریت سیستمی از <code>{restart_cmd}</code>، <code>{broadcast_cmd}</code>، <code>{logs_cmd}</code>، <code>{logger_cmd}</code>، <code>{shell_cmd}</code> و <code>{eval_cmd}</code> استفاده کن."
+owner_panel_maintenance: |
+  🛠 <b>کنترل تعمیرات</b>
+
+  <b>وضعیت:</b> {status}
+
+  از دکمه زیر برای تغییر حالت تعمیرات استفاده کن.
+  برای تنظیمات پیشرفته (دلیل و غیره) از <code>{cmd} on [دلیل]</code> یا <code>{cmd} off</code> استفاده کن.
+owner_panel_maint_btn_enable: "🟢 فعال‌سازی تعمیرات"
+owner_panel_maint_btn_disable: "🔴 غیرفعال‌سازی تعمیرات"
 help_sudo: |
   ⚡ <b>فرمان‌های سودو</b>
 
@@ -1107,3 +1159,12 @@ help_public: |
   <b>/json</b> - نمایش ساختار JSON پیام
   <b>/sudolist</b> - نمایش لیست سودوها
   </blockquote>
+
+err_voicechat_join_timeout: |
+  <b>اتصال به ویس چت انجام نشد.</b>
+
+  <i>احتمالاً سرورهای تلگرام موقتاً پاسخگو نیستند.</i>
+
+  <i>اگر مشکل برطرف نشد، گزارش را در ریپلای همین پیام ارسال کنید.</i>
+
+only_requester_or_sudo: "شمار این مدیارو درخواست نکردید."

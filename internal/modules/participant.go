@@ -18,7 +18,6 @@
 package modules
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -58,7 +57,7 @@ func getParticipantStatus(p telegram.ChannelParticipant) string {
 }
 
 func handleParticipantUpdate(p *telegram.ParticipantUpdate) error {
-	if !canBypassMaintenence(p.ActorID()) {
+	if !canBypassMaintenance(p.ActorID()) {
 		return nil
 	}
 
@@ -130,7 +129,10 @@ func handleParticipantUpdate(p *telegram.ParticipantUpdate) error {
 				groupName = chat.Title
 			}
 
-			text := fmt.Sprintf("🚨 **ربات به گروه جدیدی اضافه شد!**\n\n👥 **نام گروه:** %s\n🆔 **آیدی گروه:** <code>%d</code>\n\nوضعیت: در انتظار تایید مدیریت...", utils.EscapeHTML(groupName), chatID)
+			text := F(config.OwnerID, "owner_group_join_request", locales.Arg{
+				"group_name": utils.EscapeHTML(groupName),
+				"group_id":   chatID,
+			})
 
 			_, err = p.Client.SendMessage(config.OwnerID, text, &tg.SendOptions{
 				ParseMode:   "HTML",

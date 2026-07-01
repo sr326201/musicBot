@@ -67,15 +67,7 @@ func getEffectiveRoom(m *tg.NewMessage, cplay bool) (*core.RoomState, error) {
 }
 
 func canBypassMaintenence(userID int64) bool {
-	isMaint, _ := database.IsMaintenanceEnabled()
-	if !isMaint {
-		return true
-	}
-	if userID == config.OwnerID {
-		return true
-	}
-	ok, _ := database.IsSudo(userID)
-	return ok
+	return canBypassMaintenance(userID)
 }
 
 func shouldShowThumb(chatID int64) bool {
@@ -177,8 +169,9 @@ func SafeCallbackHandler(
 ) func(*tg.CallbackQuery) error {
 	return func(cb *tg.CallbackQuery) (err error) {
 		if !canBypassMaintenence(cb.SenderID) {
+			reason, _ := database.MaintenanceReason()
 			cb.Answer(
-				F(cb.ChannelID(), "maint", locales.Arg{"reason": ""}),
+				F(cb.ChannelID(), "maint", locales.Arg{"reason": formatMaintenanceReason(cb.ChannelID(), reason)}),
 				&tg.CallbackOptions{Alert: true},
 			)
 			return tg.ErrEndGroup
@@ -215,11 +208,7 @@ func SafeMessageHandler(
 				strings.HasSuffix(m.GetCommand(), m.Client.Me().Username) {
 				reason, _ := database.MaintenanceReason()
 				msg := F(m.ChannelID(), "maint", locales.Arg{
-					"reason": F(
-						m.ChannelID(),
-						"maint_reason",
-						locales.Arg{"reason": reason},
-					),
+					"reason": formatMaintenanceReason(m.ChannelID(), reason),
 				})
 				m.Reply(msg)
 				gologging.InfoF(
@@ -459,4 +448,11 @@ func leaveChat(client *tg.Client, chatID int64) {
 func getCommand(m *tg.NewMessage) string {
 	cmd, _, _ := strings.Cut(m.GetCommand(), "@")
 	return cmd
+}
+
+func formatMaintenanceReason(chatID int64, reason string) string {
+	if strings.TrimSpace(reason) == "" {
+		return ""
+	}
+	return F(chatID, "maint_reason", locales.Arg{"reason": html.EscapeString(reason)})
 }

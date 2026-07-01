@@ -255,8 +255,8 @@ func GetStartMarkup(chatID int64) tg.ReplyMarkup {
 func ApproveMarkup(chatID int64) *tg.ReplyInlineMarkup {
 	return tg.NewKeyboard().
 		AddRow(
-			tg.Button.Data("✅ تایید گروه", fmt.Sprintf("approve_%d", chatID)),
-			tg.Button.Data("❌ رد و خروج", fmt.Sprintf("deny_%d", chatID)),
+			tg.Button.Data(F(chatID, "approval_btn_approve"), fmt.Sprintf("approve_%d", chatID)),
+			tg.Button.Data(F(chatID, "approval_btn_deny"), fmt.Sprintf("deny_%d", chatID)),
 		).
 		Build()
 }
