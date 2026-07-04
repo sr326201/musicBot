@@ -695,6 +695,13 @@ rtmp_streaming_not_supported: |
   
 rtmp_configured_success: "✅ RTMP configured successfully for Chat ID: <code>{chat_id}</code>"
 
+rtmp_finished: |
+  📡 <b>Stream finished</b>
+
+  <b>▫ Track:</b> <a href="{url}">{title}</a>
+  <b>▫ Duration:</b> {duration}
+  <b>▫ Requested by:</b> {by}
+
 
 searching: "🔍🎶 Searching... ⚡✨"
 searching_query: "🔍🎶 Searching for: <b>{query}</b>... ⚡✨"

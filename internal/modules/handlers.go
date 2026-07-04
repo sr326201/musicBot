@@ -271,6 +271,21 @@ var handlers = []MsgHandlerDef{
 		Filters: []telegram.Filter{superGroupFilter, authFilter},
 	},
 	{
+		Pattern: "vstream",
+		Handler: vstreamHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "(streamthumb|setstreamthumb)",
+		Handler: streamThumbHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "(delstreamthumb|rmstreamthumb)",
+		Handler: delStreamThumbHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
 		Pattern: "streamstop",
 		Handler: streamStopHandler,
 		Filters: []telegram.Filter{superGroupFilter, authFilter},

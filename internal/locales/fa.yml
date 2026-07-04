@@ -715,6 +715,34 @@ rtmp_streaming_not_supported: |
 
 rtmp_configured_success: "✅ RTMP configured successfully for Chat ID: <code>{chat_id}</code>"
 
+rtmp_visual_build_failed: |
+  ❌ ساخت خروجی ویدیویی برای RTMP ناموفق بود.
+  <b>خطا:</b> <code>{error}</code>
+
+rtmp_thumb_status: |
+  🖼️ <b>وضعیت thumbnail استریم</b>
+
+  <b>منبع:</b> {source}
+  <b>مقدار فعلی:</b>
+  <code>{thumb}</code>
+
+rtmp_thumb_fetch_fail: "⚠️ دریافت thumbnail استریم ناموفق بود."
+rtmp_thumb_invalid: "⚠️ لینک تصویر نامعتبر است. یک URL مستقیم و معتبر بده."
+rtmp_thumb_update_fail: "⚠️ ذخیره thumbnail استریم ناموفق بود."
+rtmp_thumb_updated: |
+  ✅ thumbnail استریم این گروه ذخیره شد.
+
+  <code>{thumb}</code>
+
+rtmp_thumb_cleared: "✅ thumbnail اختصاصی این گروه حذف شد و از artwork آهنگ یا thumbnail پیش‌فرض استفاده می‌شود."
+
+rtmp_finished: |
+  📡 <b>استریم به پایان رسید</b>
+
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• درخواست‌کننده:</b> {by}
+
 searching: "🔍🎶 Searching... ⚡✨"
 searching_query: "🔍🎶 Searching for: <b>{query}</b>... ⚡✨"
 

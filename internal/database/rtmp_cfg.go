@@ -36,3 +36,31 @@ func SetRTMP(chatID int64, url, key, platform string) error {
 		return true
 	})
 }
+
+func RTMPThumbnail(chatID int64) (string, error) {
+	s, err := getChatSettings(chatID)
+	if err != nil {
+		return "", err
+	}
+	return s.RTMPThumbnail, nil
+}
+
+func SetRTMPThumbnail(chatID int64, thumb string) error {
+	return modifyChatSettings(chatID, func(s *ChatSettings) bool {
+		if s.RTMPThumbnail == thumb {
+			return false
+		}
+		s.RTMPThumbnail = thumb
+		return true
+	})
+}
+
+func ClearRTMPThumbnail(chatID int64) error {
+	return modifyChatSettings(chatID, func(s *ChatSettings) bool {
+		if s.RTMPThumbnail == "" {
+			return false
+		}
+		s.RTMPThumbnail = ""
+		return true
+	})
+}
