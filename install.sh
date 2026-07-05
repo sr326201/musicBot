@@ -1014,7 +1014,8 @@ install_whisper() {
         run_cmd_arr "Configuring whisper.cpp" cmake -S "$WHISPER_SRC_DIR" -B "$build_dir" \
             -DCMAKE_BUILD_TYPE=Release \
             -DWHISPER_BUILD_TESTS=OFF \
-            -DWHISPER_BUILD_EXAMPLES=OFF || return 1
+            -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DBUILD_SHARED_LIBS=OFF || return 1
 
         local jobs=4
         if command -v nproc >/dev/null 2>&1; then
