@@ -34,7 +34,6 @@ func (p *Processor) Transcribe(samples []float32, language string) (string, erro
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// استفاده از Wrapper به جای C.whisper_full
 	ret := processWhisper(p.model.ctx, samples, language, p.nThreads)
 	if ret != 0 {
 		return "", fmt.Errorf("whisper_full failed with code %d", ret)
@@ -43,7 +42,6 @@ func (p *Processor) Transcribe(samples []float32, language string) (string, erro
 	nSegments := int(C.whisper_full_n_segments(p.model.ctx))
 	var sb strings.Builder
 	for i := 0; i < nSegments; i++ {
-		// استفاده از Wrapper به جای C.whisper_get_text
 		text := getWhisperText(p.model.ctx, i)
 		if text != "" {
 			sb.WriteString(text)

@@ -48,7 +48,8 @@ func NewEngine(cfg Config) (*Engine, error) {
 // OnVoiceFrame is the callback registered with ntgcalls.OnFrame.
 // It receives raw audio frames from the voice call.
 func (e *Engine) OnVoiceFrame(chatID int64, mode ntgcalls.StreamMode, device ntgcalls.StreamDevice, frames []ntgcalls.Frame) {
-	// Only process incoming microphone audio from other participants
+	gologging.DebugF("[va:%d] RAW FRAME: mode=%v, device=%v, count=%d", chatID, mode, device, len(frames))
+
 	if mode != ntgcalls.PlaybackStream || device != ntgcalls.MicrophoneStream {
 		return
 	}
@@ -161,3 +162,15 @@ func (e *Engine) Close() {
 func (e *Engine) GetLanguage() string {
 	return e.config.Language
 }
+
+// func PlaybackFrameDescription() ntgcalls.MediaDescription {
+// 	return ntgcalls.MediaDescription{
+// 		Microphone: &ntgcalls.AudioDescription{
+// 			MediaSource:  ntgcalls.MediaSourceExternal,
+// 			Input:        "",
+// 			SampleRate:   ntgSampleRate,
+// 			ChannelCount: ntgChannels,
+// 			KeepOpen:     true,
+// 		},
+// 	}
+// }

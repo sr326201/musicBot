@@ -121,16 +121,38 @@ func (ctx *Context) Unmute(chatID int64) (bool, error) {
 	return ctx.binding.Unmute(chatID)
 }
 
+func (ctx *Context) hasFrameCallbacks() bool {
+	ctx.callbacksMutex.RLock()
+	defer ctx.callbacksMutex.RUnlock()
+	return len(ctx.frameCallbacks) > 0
+}
+
 func (ctx *Context) Play(
 	chatID int64,
 	mediaDescription ntgcalls.MediaDescription,
 ) error {
 	if ctx.binding.Calls()[chatID] != nil {
-		return ctx.binding.SetStreamSources(
+		err := ctx.binding.SetStreamSources(
 			chatID,
 			ntgcalls.CaptureStream,
 			mediaDescription,
 		)
+		if err != nil {
+			return err
+		}
+
+		if ctx.hasFrameCallbacks() {
+			err = ctx.binding.SetStreamSources(
+				chatID,
+				ntgcalls.PlaybackStream,
+				playbackFrameDescription(),
+			)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}
 
 	err := ctx.connectCall(chatID, mediaDescription, "")
@@ -143,7 +165,20 @@ func (ctx *Context) Play(
 		if err != nil {
 			return err
 		}
-		return ctx.updateSources(chatID)
+		if err := ctx.updateSources(chatID); err != nil {
+			return err
+		}
+	}
+
+	if ctx.hasFrameCallbacks() {
+		err = ctx.binding.SetStreamSources(
+			chatID,
+			ntgcalls.PlaybackStream,
+			playbackFrameDescription(),
+		)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -684,4 +719,16 @@ func (ctx *Context) ExportGroupCallInvite(chatId int64, canSelfUnmute bool) (str
 	}
 
 	return invite.Link, nil
+}
+
+func playbackFrameDescription() ntgcalls.MediaDescription {
+	return ntgcalls.MediaDescription{
+		Microphone: &ntgcalls.AudioDescription{
+			MediaSource:  ntgcalls.MediaSourceExternal,
+			Input:        "",
+			SampleRate:   96000,
+			ChannelCount: 2,
+			KeepOpen:     true,
+		},
+	}
 }

@@ -25,7 +25,6 @@ package main
 
 
 #include "ntgcalls/ntgcalls.h"
-#include "glibc_compatibility.h"
 */
 
 import "C"

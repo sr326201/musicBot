@@ -7,6 +7,7 @@ import (
 	"github.com/amarnathcjd/gogram/telegram"
 
 	"main/internal/core"
+	"main/ntgcalls"
 )
 
 var vaEngine *Engine
@@ -39,10 +40,18 @@ func VaStartHandler(m *telegram.NewMessage) error {
 
 	vaEngine.SetCommandCallback(chatID, handleVoiceCommand)
 
-	// m.Reply(F(chatID, "va_started"))
+	ass, err := core.Assistants.ForChat(chatID)
+	if err == nil && ass != nil && ass.Ntg != nil {
+		if ass.Ntg.Calls()[chatID] != nil {
+			if err := ass.Ntg.Record(chatID, PlaybackFrameDescription()); err != nil {
+				gologging.ErrorF("[va:%d] failed to arm playback stream on /va_start: %v", chatID, err)
+			} else {
+				gologging.InfoF("[va:%d] playback stream armed on /va_start", chatID)
+			}
+		}
+	}
 
 	m.Reply("🎙 Voice assistant started")
-
 	return telegram.ErrEndGroup
 }
 
@@ -104,7 +113,6 @@ func handleVoiceCommand(chatID int64, cmd VACommand) {
 			gologging.ErrorF("[va:%d] resume error: %v", chatID, err)
 		}
 	case "skip":
-		// Call the skip logic (next track from queue)
 		r.NextTrack()
 	case "stop":
 		core.DeleteRoom(chatID)
@@ -124,5 +132,17 @@ func handleVoiceCommand(chatID int64, cmd VACommand) {
 		r.Mute()
 	case "unmute":
 		r.Unmute()
+	}
+}
+
+func PlaybackFrameDescription() ntgcalls.MediaDescription {
+	return ntgcalls.MediaDescription{
+		Microphone: &ntgcalls.AudioDescription{
+			MediaSource:  ntgcalls.MediaSourceExternal,
+			Input:        "",
+			SampleRate:   ntgSampleRate,
+			ChannelCount: ntgChannels,
+			KeepOpen:     true,
+		},
 	}
 }

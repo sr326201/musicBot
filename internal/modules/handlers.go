@@ -888,6 +888,11 @@ func Init(bot *telegram.Client, assistants *core.AssistantManager) {
 		gologging.ErrorF("failed to initialize voice assistant: %v", err)
 	} else {
 		voiceassistant.InitVoiceAssistant(vaEngine)
+
+		assistants.ForEach(func(a *core.Assistant) {
+			a.Ntg.OnFrame(vaEngine.OnVoiceFrame)
+		})
+		gologging.Info("[voiceassistant] Registered OnFrame callbacks for all assistants")
 	}
 
 	assistants.ForEach(func(a *core.Assistant) {

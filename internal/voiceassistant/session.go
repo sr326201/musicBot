@@ -54,12 +54,14 @@ func (s *VASession) FeedAudio(pcmData []byte) {
 	// 2. Run VAD
 	if s.vad.DetectSpeech(pcmData) {
 		s.lastSpeech = time.Now()
+		gologging.DebugF("[va:%d] VAD: Speech detected", s.chatID)
 	}
 
 	// 3. Check if utterance is complete
 	if s.vad.IsUtteranceComplete(s.lastSpeech) {
 		// Prevent concurrent processing
 		if s.processMu.TryLock() {
+			gologging.InfoF("[va:%d] VAD: Utterance complete, starting transcription...", s.chatID)
 			go func() {
 				defer s.processMu.Unlock()
 				s.processUtterance()
@@ -69,13 +71,15 @@ func (s *VASession) FeedAudio(pcmData []byte) {
 }
 
 // processUtterance takes the accumulated audio, converts it, and transcribes.
+// internal/voiceassistant/session.go
+
 func (s *VASession) processUtterance() {
 	pcmChunk := s.buffer.GetAndCopy()
 	if len(pcmChunk) == 0 {
+		gologging.DebugF("[va:%d] processUtterance: buffer is empty", s.chatID)
 		return
 	}
 
-	// Convert s16le 96kHz stereo → float32 16kHz mono
 	samples := convertS16LEToFloat32Mono(pcmChunk, ntgSampleRate, ntgChannels)
 	if len(samples) == 0 {
 		return
@@ -83,7 +87,8 @@ func (s *VASession) processUtterance() {
 
 	gologging.DebugF("[va:%d] processing %d samples (%.1f sec)", s.chatID, len(samples), float64(len(samples))/16000.0)
 
-	// Transcribe
+	gologging.InfoF("[va:%d] sending audio to Whisper for transcription...", s.chatID)
+
 	text, err := s.engine.transcriber.Transcribe(samples, s.engine.config.Language)
 	if err != nil {
 		gologging.ErrorF("[va:%d] transcription error: %v", s.chatID, err)
@@ -92,23 +97,24 @@ func (s *VASession) processUtterance() {
 
 	text = strings.TrimSpace(text)
 	if text == "" {
+		gologging.DebugF("[va:%d] Whisper returned empty text", s.chatID)
 		return
 	}
 
-	gologging.InfoF("[va:%d] transcribed: %q", s.chatID, text)
+	gologging.InfoF("[va:%d] transcribed text: %q", s.chatID, text)
 
-	// Notify transcription
 	if s.onTranscription != nil {
 		s.onTranscription(s.chatID, text)
 	}
 
-	// Parse and execute command
 	cmd := parseVoiceCommand(text)
 	if cmd.Type != "unknown" {
-		gologging.InfoF("[va:%d] command: %s %s", s.chatID, cmd.Type, cmd.Args)
+		gologging.InfoF("[va:%d] matched command: %s (args: %s)", s.chatID, cmd.Type, cmd.Args)
 		if s.onCommand != nil {
 			s.onCommand(s.chatID, cmd)
 		}
+	} else {
+		gologging.DebugF("[va:%d] text did not match any known command", s.chatID)
 	}
 }
 
@@ -128,10 +134,10 @@ func parseVoiceCommand(text string) VACommand {
 		{[]string{"ادامه", "resume", "continue"}, "resume"},
 		{[]string{"رد کردن", "skip", "بعدی", "next"}, "skip"},
 		{[]string{"توقف", "stop", "بس کن", ".end"}, "stop"},
-		{[]string{"صدا زیاد", "volume up", "صداتو زیاد", " louder"}, "volume_up"}, // ← قبل از mute/unmute
-		{[]string{"صدا کم", "volume down", "صداتو کم", "quieter"}, "volume_down"}, // ← قبل از mute/unmute
+		{[]string{"صدا زیاد", "volume up", "صداتو زیاد", " louder"}, "volume_up"},
+		{[]string{"صدا کم", "volume down", "صداتو کم", "quieter"}, "volume_down"},
 		{[]string{"بیصدا", "mute", "سکوت"}, "mute"},
-		{[]string{"باصدا", "unmute"}, "unmute"}, // ← "صدا" رو حذف کن
+		{[]string{"باصدا", "unmute"}, "unmute"},
 	}
 
 	for _, p := range patterns {

@@ -30,7 +30,7 @@ type TranscriptionResult struct {
 func DefaultConfig() Config {
 	modelPath := os.Getenv("WHISPER_MODEL_PATH")
 	if modelPath == "" {
-		modelPath = filepath.Join("whisper.cpp", "models", "ggml-small.bin")
+		modelPath = filepath.Join("whisper.cpp", "models", "ggml-small.en.bin")
 	}
 
 	lang := os.Getenv("WHISPER_LANGUAGE")
