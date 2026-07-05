@@ -22,10 +22,12 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Laky-64/gologging"
 	"github.com/amarnathcjd/gogram/telegram"
 
 	"main/internal/config"
 	"main/internal/core"
+	"main/internal/voiceassistant"
 )
 
 type MsgHandlerDef struct {
@@ -522,6 +524,41 @@ var handlers = []MsgHandlerDef{
 		Handler: privacyHandler,
 		Filters: []telegram.Filter{ignoreChannelFilter},
 	},
+	// {
+	// 	Pattern: "(approve|approvechat)",
+	// 	Handler: handleApproveChat,
+	// 	Filters: []telegram.Filter{ownerFilter, ignoreChannelFilter},
+	// },
+	// {
+	// 	Pattern: "(unapprove|unapprovechat)",
+	// 	Handler: handleUnapproveChat,
+	// 	Filters: []telegram.Filter{ownerFilter, ignoreChannelFilter},
+	// },
+	// {
+	// 	Pattern: "(approved|approvedchats)",
+	// 	Handler: handleApprovedChats,
+	// 	Filters: []telegram.Filter{ownerFilter, ignoreChannelFilter},
+	// },
+	{
+		Pattern: "(allgroups|chats)",
+		Handler: handleAllGroups,
+		Filters: []telegram.Filter{ownerFilter, ignoreChannelFilter},
+	},
+	{
+		Pattern: "va_start",
+		Handler: voiceassistant.VaStartHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "va_stop",
+		Handler: voiceassistant.VaStopHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "va_status",
+		Handler: voiceassistant.VaStatusHandler,
+		Filters: []telegram.Filter{superGroupFilter},
+	},
 }
 
 var plainCommandAliases = map[string]string{
@@ -609,7 +646,9 @@ var cbHandlers = []CbHandlerDef{
 	{Pattern: "^cancel$", Handler: cancelHandler},
 	{Pattern: "^restart:(bot|replay)$", Handler: restartConfirmHandler},
 	{Pattern: "^bcast_cancel$", Handler: broadcastCancelCB},
-	{Pattern: "^rtmp_stop$", Handler: rtmpStopCallbackHandler},
+	{Pattern: "^rtmp_stop(:[A-Za-z0-9]+)?$", Handler: rtmpStopCallbackHandler},
+	{Pattern: "^voicechat:(start|cancel)(:[A-Za-z0-9]+)?$", Handler: voiceChatConfirmCB},
+	{Pattern: `^owner:(main|groups|users|sudo|stats|maintenance|maint_enable|maint_disable|system|refresh|close)$`, Handler: ownerPanelCallbackHandler},
 
 	{Pattern: `^room:-?\d+:\w+$`, Handler: roomHandle},
 	{Pattern: "progress", Handler: emptyCBHandler},
@@ -625,6 +664,15 @@ func Init(bot *telegram.Client, assistants *core.AssistantManager) {
 		telegram.IsText,
 	).SetGroup(99)
 	// bot.Use(plainTextCommandMiddleware)
+
+	//va
+	vaEngine, err := voiceassistant.NewEngine(voiceassistant.DefaultConfig())
+	if err != nil {
+		gologging.ErrorF("failed to initialize voice assistant: %v", err)
+	} else {
+		voiceassistant.InitVoiceAssistant(vaEngine)
+	}
+
 	assistants.ForEach(func(a *core.Assistant) {
 		a.Client.UpdatesGetState()
 	})

@@ -1,6 +1,9 @@
 package ntgcalls
 
 //#include "ntgcalls.h"
+//#cgo linux LDFLAGS: -L .. -lntgcalls -lresolv -lm -lz -lstdc++ -lgomp
+//#cgo darwin LDFLAGS: -L .. -lntgcalls -lc++ -lz
+//#cgo windows LDFLAGS: -L.. -lntgcalls -lm -lstdc++
 //#include <stdlib.h>
 //extern void handleStreamEnd(uintptr_t ptr, int64_t chatID, ntg_stream_type_enum streamType, ntg_stream_device_enum streamDevice, void*);
 //extern void handleUpgrade(uintptr_t ptr, int64_t chatID, ntg_media_state_struct state, void*);

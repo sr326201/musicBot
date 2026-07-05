@@ -802,6 +802,38 @@ print_summary() {
     echo -e "\n${CYAN}Detailed log: $INSTALL_LOG${RESET}"
 }
 
+# New variables
+INSTALL_WHISPER=false
+WHISPER_VERSION="v1.7.6"
+
+install_whisper() {
+    should_install whisper || return 0
+    
+    print_step "Building whisper.cpp..."
+    
+    if [[ -d "whisper.cpp" ]]; then
+        print_info "whisper.cpp source already exists"
+    else
+        git clone --depth 1 --branch $WHISPER_VERSION \
+            https://github.com/ggml-org/whisper.cpp.git
+    fi
+    
+    cd whisper.cpp
+    cmake -B build -DCMAKE_BUILD_TYPE=Release \
+          -DWHISPER_BUILD_TESTS=OFF \
+          -DWHISPER_BUILD_EXAMPLES=OFF
+    cmake --build build --config Release -j$(nproc)
+    
+    # Copy artifacts to project root
+    cp build/src/libwhisper.a ../
+    cp build/ggml/src/libggml.a ../
+    cp build/ggml/src/libggml-cpu.a ../ 2>/dev/null || true
+    cp include/whisper.h ../whisper/include/
+    
+    cd ..
+    print_success "whisper.cpp built and installed"
+}
+
 main() {
     parse_arguments "$@"
 

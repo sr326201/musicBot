@@ -359,8 +359,19 @@ func ensureVoiceChatReady(
 		return err
 	}
 
-	time.Sleep(1 * time.Second)
-	return nil
+	maxWait := 5 * time.Second
+	deadline := time.Now().Add(maxWait)
+
+	for time.Now().Before(deadline) {
+		snap, snapErr := cs.Snapshot(true)
+		if snapErr == nil && snap.AssistantPresent {
+			return nil
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+
+	utils.EOR(replyMsg, getErrorMessage(chatID, core.ErrInviteRequestSent))
+	return fmt.Errorf("assistant did not appear in chat state after join")
 }
 
 func filterAndTrimTracks(
@@ -761,6 +772,28 @@ func handlePlayAttemptError(
 			) + ")",
 		)
 		time.Sleep(2 * time.Second)
+		return true, nil
+	}
+
+	if isPhoneJoinGroupCallTimeout(err) {
+		cs, csErr := core.GetChatState(room.ID)
+		if csErr == nil {
+			snap, snapErr := cs.Snapshot(true)
+			if snapErr == nil && !snap.VoiceChatActive {
+				core.DeleteRoom(room.ID)
+				return true, tg.ErrEndGroup
+			}
+		}
+
+		backoff := time.Duration(attempt*2) * time.Second
+		gologging.Error(
+			"PhoneJoinGroupCall timeout (attempt " + utils.IntToStr(
+				attempt,
+			) + "/" + utils.IntToStr(playMaxRetries) + "). Waiting " + utils.IntToStr(
+				int(backoff/time.Second),
+			) + "s before retry...",
+		)
+		time.Sleep(backoff)
 		return true, nil
 	}
 

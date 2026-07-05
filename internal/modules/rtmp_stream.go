@@ -18,25 +18,51 @@
 package modules
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Laky-64/gologging"
 	tg "github.com/amarnathcjd/gogram/telegram"
 
 	"main/internal/config"
 	"main/internal/core"
+	state "main/internal/core/models"
 	"main/internal/database"
 	"main/internal/locales"
 	"main/internal/utils"
 )
 
+type rtmpTrackData struct {
+	title     string
+	duration  int
+	requester string
+	url       string
+	sessionID string
+}
+
 var (
 	rtmpStreams   = make(map[int64]*tg.RTMPStream)
 	rtmpStreamsMu sync.RWMutex
+
+	rtmpStatusMsgs   = make(map[int64]*tg.NewMessage)
+	rtmpStatusMsgsMu sync.RWMutex
+
+	rtmpStopping   = make(map[int64]bool)
+	rtmpStoppingMu sync.RWMutex
+
+	rtmpTrackInfo   = make(map[int64]*rtmpTrackData)
+	rtmpTrackInfoMu sync.RWMutex
 )
 
 func init() {
@@ -82,10 +108,56 @@ func getOrCreateRTMPStream(chatID int64, url, key string) *tg.RTMPStream {
 
 	stream.OnError(func(chatID int64, err error) {
 		gologging.ErrorF("RTMP error in chat %d: %v", chatID, err)
-		core.Bot.SendMessage(
-			chatID,
-			"⚠️ RTMP stream encountered an error. Check logs for details.",
-		)
+		closeTrackedRTMPPanel(chatID, F(chatID, "rtmp_runtime_failed", locales.Arg{
+			"error": utils.EscapeHTML(err.Error()),
+		}))
+		clearRTMPState(chatID)
+	})
+
+	stream.OnEnd(func(chatID int64) {
+		gologging.InfoF("RTMP stream ended naturally in chat %d", chatID)
+
+		rtmpStoppingMu.RLock()
+		stopping := rtmpStopping[chatID]
+		rtmpStoppingMu.RUnlock()
+
+		if stopping {
+			rtmpStoppingMu.Lock()
+			delete(rtmpStopping, chatID)
+			rtmpStoppingMu.Unlock()
+			return
+		}
+
+		rtmpStatusMsgsMu.RLock()
+		statusMsg, exists := rtmpStatusMsgs[chatID]
+		rtmpStatusMsgsMu.RUnlock()
+
+		if exists && statusMsg != nil {
+			rtmpTrackInfoMu.RLock()
+			info := rtmpTrackInfo[chatID]
+			rtmpTrackInfoMu.RUnlock()
+
+			title := "-"
+			by := "-"
+			duration := "-"
+			url := "#"
+			if info != nil {
+				title = utils.EscapeHTML(utils.ShortTitle(info.title, 35))
+				by = info.requester
+				duration = utils.FormatDuration(info.duration)
+				url = info.url
+			}
+
+			finishedText := F(chatID, "rtmp_finished", locales.Arg{
+				"title":    title,
+				"duration": duration,
+				"by":       by,
+				"url":      url,
+			})
+			closeRTMPPanelMessage(statusMsg, finishedText)
+		}
+
+		clearRTMPState(chatID)
 	})
 
 	rtmpStreams[chatID] = stream
@@ -130,6 +202,8 @@ func handleStream(m *tg.NewMessage, force bool) error {
 		m.Reply(F(chatID, "rtmp_already_streaming"))
 		return tg.ErrEndGroup
 	}
+
+	sessionID := strconv.FormatInt(time.Now().UnixNano(), 36)
 
 	searchStr := ""
 	if query != "" {
@@ -202,7 +276,7 @@ func handleStream(m *tg.NewMessage, force bool) error {
 
 	// Success message
 	btn := tg.NewKeyboard()
-	stopBtn := tg.Button.Data(F(chatID, "CONFIRM_STOP_BTN"), "rtmp_stop")
+	stopBtn := tg.Button.Data(F(chatID, "CONFIRM_STOP_BTN"), "rtmp_stop:"+sessionID)
 	if !config.DisableColour {
 		stopBtn.Danger()
 	}
@@ -225,7 +299,32 @@ func handleStream(m *tg.NewMessage, force bool) error {
 		opt.Media = utils.CleanURL(track.Artwork)
 	}
 
-	utils.EOR(replyMsg, msgText, opt)
+	prevStatusMsg := trackedRTMPStatusMessage(chatID)
+
+	replyMsg, _ = utils.EOR(replyMsg, msgText, opt)
+
+	if prevStatusMsg != nil && replyMsg != nil && prevStatusMsg.ID != replyMsg.ID {
+		closeRTMPPanelMessage(prevStatusMsg, F(chatID, "rtmp_replaced"))
+	}
+
+	rtmpStatusMsgsMu.Lock()
+	rtmpStatusMsgs[chatID] = replyMsg
+	rtmpStatusMsgsMu.Unlock()
+
+	rtmpTrackInfoMu.Lock()
+	rtmpTrackInfo[chatID] = &rtmpTrackData{
+		title:     track.Title,
+		duration:  track.Duration,
+		requester: mention,
+		url:       track.URL,
+		sessionID: sessionID,
+	}
+	rtmpTrackInfoMu.Unlock()
+
+	rtmpStoppingMu.Lock()
+	delete(rtmpStopping, chatID)
+	rtmpStoppingMu.Unlock()
+
 	return tg.ErrEndGroup
 }
 
@@ -249,9 +348,13 @@ func streamStopHandler(m *tg.NewMessage) error {
 		return tg.ErrEndGroup
 	}
 
-	m.Reply(F(chatID, "rtmp_stopped", locales.Arg{
+	stoppedText := F(chatID, "rtmp_stopped", locales.Arg{
 		"user": utils.MentionHTML(m.Sender),
-	}))
+	})
+	closeTrackedRTMPPanel(chatID, stoppedText)
+	clearRTMPState(chatID)
+
+	m.Reply(stoppedText)
 
 	return tg.ErrEndGroup
 }
@@ -259,8 +362,32 @@ func streamStopHandler(m *tg.NewMessage) error {
 func rtmpStopCallbackHandler(cb *tg.CallbackQuery) error {
 	chatID := cb.ChannelID()
 	opt := &tg.CallbackOptions{Alert: true}
+	parts := strings.SplitN(cb.DataString(), ":", 2)
+	sessionID := ""
+	if len(parts) == 2 {
+		sessionID = parts[1]
+	}
 
 	if !checkAdminOrAuth(cb, chatID) {
+		return tg.ErrEndGroup
+	}
+
+	activeInfo := trackedRTMPInfo(chatID)
+	if activeInfo == nil || activeInfo.sessionID == "" {
+		cb.Answer(F(chatID, "room_no_active"), opt)
+		_, _ = cb.Edit(F(chatID, "room_no_active"), &tg.SendOptions{
+			ParseMode:   "HTML",
+			ReplyMarkup: tg.Button.Clear(),
+		})
+		return tg.ErrEndGroup
+	}
+
+	if sessionID == "" || activeInfo.sessionID != sessionID {
+		cb.Answer(F(chatID, "rtmp_panel_expired"), opt)
+		_, _ = cb.Edit(F(chatID, "rtmp_panel_expired"), &tg.SendOptions{
+			ParseMode:   "HTML",
+			ReplyMarkup: tg.Button.Clear(),
+		})
 		return tg.ErrEndGroup
 	}
 
@@ -280,9 +407,15 @@ func rtmpStopCallbackHandler(cb *tg.CallbackQuery) error {
 		return tg.ErrEndGroup
 	}
 
-	_, _ = cb.Edit(F(chatID, "rtmp_stopped", locales.Arg{
+	stoppedText := F(chatID, "rtmp_stopped", locales.Arg{
 		"user": utils.MentionHTML(cb.Sender),
-	}))
+	})
+	closeTrackedRTMPPanel(chatID, stoppedText)
+	clearRTMPState(chatID)
+	_, _ = cb.Edit(stoppedText, &tg.SendOptions{
+		ParseMode:   "HTML",
+		ReplyMarkup: tg.Button.Clear(),
+	})
 	cb.Answer(F(chatID, "cb_stop_success"), &tg.CallbackOptions{})
 	return tg.ErrEndGroup
 }
@@ -401,4 +534,317 @@ func clearRTMPState(chatID int64) {
 		_ = stream.Stop()
 		delete(rtmpStreams, chatID)
 	}
+}
+
+func trackedRTMPStatusMessage(chatID int64) *tg.NewMessage {
+	rtmpStatusMsgsMu.RLock()
+	defer rtmpStatusMsgsMu.RUnlock()
+	return rtmpStatusMsgs[chatID]
+}
+
+func trackedRTMPInfo(chatID int64) *rtmpTrackData {
+	rtmpTrackInfoMu.RLock()
+	defer rtmpTrackInfoMu.RUnlock()
+	return rtmpTrackInfo[chatID]
+}
+
+func closeTrackedRTMPPanel(chatID int64, text string) {
+	closeRTMPPanelMessage(trackedRTMPStatusMessage(chatID), text)
+}
+
+func closeRTMPPanelMessage(msg *tg.NewMessage, text string) {
+	if msg == nil {
+		return
+	}
+
+	if _, err := msg.Edit(text, &tg.SendOptions{
+		ParseMode:   "HTML",
+		ReplyMarkup: tg.Button.Clear(),
+	}); err != nil && !tg.MatchError(err, "MESSAGE_NOT_MODIFIED") {
+		gologging.ErrorF("RTMP panel edit failed chat=%d msg=%d: %v", msg.ChannelID(), msg.ID, err)
+	}
+}
+
+func resolveRTMPThumbnail(chatID int64, track *state.Track) string {
+	custom, err := database.RTMPThumbnail(chatID)
+	if err == nil && strings.TrimSpace(custom) != "" {
+		return strings.TrimSpace(custom)
+	}
+
+	if track != nil && strings.TrimSpace(track.Artwork) != "" {
+		return strings.TrimSpace(track.Artwork)
+	}
+
+	if _, err := os.Stat(defaultRTMPThumbPath); err == nil {
+		return defaultRTMPThumbPath
+	}
+
+	return ""
+}
+
+func prepareRTMPPlaybackSource(
+	chatID int64,
+	sourcePath string,
+	track *state.Track,
+	platform string,
+) (string, string, error) {
+	thumb := resolveRTMPThumbnail(chatID, track)
+
+	profile, ok := platformProfiles[platform]
+	if !ok {
+		profile = platformProfiles["custom"]
+	}
+
+	gologging.InfoF(
+		"RTMP DEBUG prepare start chat=%d trackID=%s video=%v sourcePath=%q thumb=%q",
+		chatID,
+		trackIDForThumb(track),
+		track != nil && track.Video,
+		sourcePath,
+		thumb,
+	)
+
+	if track == nil {
+		return sourcePath, thumb, nil
+	}
+
+	if track.Video {
+		gologging.InfoF(
+			"RTMP DEBUG prepare skip wrapper: video track chat=%d trackID=%s sourcePath=%q",
+			chatID,
+			trackIDForThumb(track),
+			sourcePath,
+		)
+		return sourcePath, thumb, nil
+	}
+
+	if isRemoteRTMPSource(sourcePath) {
+		gologging.InfoF(
+			"RTMP DEBUG prepare skip wrapper: remote source chat=%d trackID=%s sourcePath=%q",
+			chatID,
+			trackIDForThumb(track),
+			sourcePath,
+		)
+		return sourcePath, thumb, nil
+	}
+
+	if thumb == "" {
+		gologging.InfoF(
+			"RTMP DEBUG prepare skip wrapper: no thumb chat=%d trackID=%s sourcePath=%q",
+			chatID,
+			trackIDForThumb(track),
+			sourcePath,
+		)
+		return sourcePath, "", nil
+	}
+
+	if track.Video {
+		return sourcePath, thumb, nil
+	}
+
+	if isRemoteRTMPSource(sourcePath) {
+		return sourcePath, thumb, nil
+	}
+
+	if thumb == "" {
+		return sourcePath, "", nil
+	}
+
+	if err := os.MkdirAll("cache", os.ModePerm); err != nil {
+		return "", thumb, err
+	}
+
+	localThumb, cleanup, err := ensureLocalRTMPThumbnail(thumb, track)
+	if err != nil {
+		return "", thumb, err
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+
+	gologging.InfoF(
+		"RTMP DEBUG local thumb ready chat=%d trackID=%s originalThumb=%q localThumb=%q",
+		chatID,
+		trackIDForThumb(track),
+		thumb,
+		localThumb,
+	)
+
+	logRTMPFileInfo("local-thumb", localThumb)
+
+	out := filepath.Join("cache", "rtmp_visual_"+sanitizeRTMPCacheKey(track.ID)+".flv")
+
+	args := []string{
+		"-y",
+		"-loop", "1",
+		"-i", localThumb,
+		"-i", sourcePath,
+		"-c:v", "libx264",
+		"-preset", "veryfast",
+		"-tune", "stillimage",
+		"-pix_fmt", "yuv420p",
+		"-r", strconv.Itoa(profile.FrameRate),
+		"-s", profile.Resolution,
+		"-b:v", profile.Bitrate,
+		"-maxrate", profile.Bitrate,
+		"-bufsize", profile.Bitrate + "k",
+		"-c:a", "aac",
+		"-b:a", profile.AudioBit,
+		"-ar", strconv.Itoa(profile.AudioSampleRate),
+		"-ac", "2",
+		"-shortest",
+		"-f", "flv",
+		out,
+	}
+
+	gologging.InfoF(
+		"RTMP DEBUG ffmpeg wrapper start chat=%d trackID=%s out=%q source=%q thumb=%q",
+		chatID,
+		trackIDForThumb(track),
+		out,
+		sourcePath,
+		localThumb,
+	)
+
+	cmd := exec.Command("ffmpeg", args...)
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", thumb, fmt.Errorf("ffmpeg failed: %v: %s", err, strings.TrimSpace(stderr.String()))
+	}
+
+	logRTMPFileInfo("ffmpeg-output", out)
+
+	gologging.InfoF(
+		"RTMP DEBUG ffmpeg wrapper success chat=%d trackID=%s out=%q",
+		chatID,
+		trackIDForThumb(track),
+		out,
+	)
+
+	return out, thumb, nil
+}
+
+func isRemoteRTMPSource(source string) bool {
+	s := strings.ToLower(strings.TrimSpace(source))
+	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
+}
+
+func sanitizeRTMPCacheKey(s string) string {
+	replacer := strings.NewReplacer(
+		"/", "_",
+		"\\", "_",
+		":", "_",
+		"?", "_",
+		"&", "_",
+		"=", "_",
+		"%", "_",
+		"#", "_",
+	)
+	s = replacer.Replace(strings.TrimSpace(s))
+	if s == "" {
+		return "track"
+	}
+	return s
+}
+
+func ensureLocalRTMPThumbnail(
+	thumb string,
+	track *state.Track,
+) (string, func(), error) {
+	thumb = strings.TrimSpace(thumb)
+	if thumb == "" {
+		return "", nil, fmt.Errorf("thumbnail is empty")
+	}
+
+	if !isRemoteRTMPSource(thumb) {
+		return thumb, nil, nil
+	}
+
+	if err := os.MkdirAll("cache", os.ModePerm); err != nil {
+		return "", nil, err
+	}
+
+	ext := filepath.Ext(strings.Split(thumb, "?")[0])
+	if ext == "" {
+		ext = ".jpg"
+	}
+
+	name := "rtmp_thumb_" + sanitizeRTMPCacheKey(trackIDForThumb(track)) + ext
+	dest := filepath.Join("cache", name)
+
+	if _, err := os.Stat(dest); err == nil {
+		return dest, nil, nil
+	}
+
+	client := &http.Client{
+		Timeout: 20 * time.Second,
+	}
+
+	req, err := http.NewRequest(http.MethodGet, thumb, nil)
+	if err != nil {
+		return "", nil, err
+	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+
+	gologging.InfoF("RTMP DEBUG downloading thumbnail from %s", thumb)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", nil, fmt.Errorf("thumbnail download failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", nil, fmt.Errorf("thumbnail download returned status %d", resp.StatusCode)
+	}
+
+	file, err := os.Create(dest)
+	if err != nil {
+		return "", nil, err
+	}
+	defer file.Close()
+
+	if _, err := io.Copy(file, resp.Body); err != nil {
+		return "", nil, err
+	}
+
+	return dest, nil, nil
+}
+
+func trackIDForThumb(track *state.Track) string {
+	if track == nil {
+		return "track"
+	}
+	if strings.TrimSpace(track.ID) != "" {
+		return track.ID
+	}
+	if strings.TrimSpace(track.Title) != "" {
+		return track.Title
+	}
+	return "track"
+}
+
+func logRTMPFileInfo(label, path string) {
+	if strings.TrimSpace(path) == "" {
+		gologging.WarnF("RTMP DEBUG [%s] empty path", label)
+		return
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		gologging.WarnF("RTMP DEBUG [%s] stat failed path=%s err=%v", label, path, err)
+		return
+	}
+
+	gologging.InfoF(
+		"RTMP DEBUG [%s] path=%s size=%d isDir=%v",
+		label,
+		path,
+		info.Size(),
+		info.IsDir(),
+	)
 }

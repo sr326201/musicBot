@@ -677,6 +677,26 @@ rtmp_streaming_not_supported: |
   
 rtmp_configured_success: "✅ RTMP configured successfully for Chat ID: <code>{chat_id}</code>"
 
+rtmp_finished: |
+  📡 <b>Stream finished</b>
+
+  <b>▫ Track:</b> <a href="{url}">{title}</a>
+  <b>▫ Duration:</b> {duration}
+  <b>▫ Requested by:</b> {by}
+
+rtmp_replaced: |
+  ℹ️ <b>This panel was replaced by a new stream.</b>
+
+rtmp_panel_expired: |
+  ⚠️ <b>This control belongs to an older stream.</b>
+
+  Use the latest panel to control the current stream.
+
+rtmp_runtime_failed: |
+  ⚠️ <b>RTMP stream stopped because of an error.</b>
+
+  <code>{error}</code>
+
 
 searching: "🔍🎶 Searching... ⚡✨"
 searching_query: "🔍🎶 Searching for: <b>{query}</b>... ⚡✨"

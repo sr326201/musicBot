@@ -137,9 +137,14 @@ func (r *RoomState) Resume() (bool, error) {
 	}
 
 	r.mu.RLock()
+	sincePause := time.Since(time.Unix(r.updatedAt, 0))
 	alreadyPlaying := !r.paused
 	wasMuted := r.muted
 	r.mu.RUnlock()
+
+	if sincePause < 500*time.Millisecond {
+		time.Sleep(500*time.Millisecond - sincePause)
+	}
 
 	if alreadyPlaying {
 		return true, nil
@@ -528,6 +533,7 @@ func getMediaDescription(
 	}
 
 	baseCmd := "ffmpeg "
+	baseCmd += "-fflags +genpts -avoid_negative_ts make_zero "
 	if isStreamURL(url) {
 		baseCmd += "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
 	}
