@@ -150,11 +150,41 @@ func (r *RoomState) Resume() (bool, error) {
 		return true, nil
 	}
 
-	resumed, err := r.Assistant.Ntg.Resume(r.ID)
-	if err != nil {
-		return false, err
-	}
+	//----------------- v1 -----------
+	// resumed, err := r.Assistant.Ntg.Resume(r.ID)
+	// if err != nil {
+	// 	return false, err
+	// }
 
+	// r.mu.Lock()
+	// r.paused = false
+	// r.playing = true
+	// r.updatedAt = time.Now().Unix()
+	// if r.scheduledTimers != nil {
+	// 	r.scheduledTimers.cancelScheduledResume()
+	// }
+	// r.mu.Unlock()
+
+	// // Rebuild pipeline with current speed/volume/position to apply
+	// // any changes made while paused
+	// if err := r.play(); err != nil {
+	// 	// Rollback: pause the stream again to maintain consistent state
+	// 	_, _ = r.Assistant.Ntg.Pause(r.ID)
+	// 	r.mu.Lock()
+	// 	r.paused = true
+	// 	r.mu.Unlock()
+	// 	return false, err
+	// }
+
+	// if wasMuted {
+	// 	_, _ = r.Assistant.Ntg.Mute(r.ID)
+	// }
+
+	// return resumed, nil
+	//------------------ v1 -----------------
+
+	// Ntg.Play پایپ‌لاین را از position فعلی با speed/volume جدید می‌سازد،
+	// پس نیازی به Ntg.Resume جدا نیست (تداخل ایجاد می‌کرد).
 	r.mu.Lock()
 	r.paused = false
 	r.playing = true
@@ -164,11 +194,21 @@ func (r *RoomState) Resume() (bool, error) {
 	}
 	r.mu.Unlock()
 
+	if err := r.play(); err != nil {
+		// Rollback: pause the stream again to maintain consistent state
+		_, _ = r.Assistant.Ntg.Pause(r.ID)
+		r.mu.Lock()
+		r.paused = true
+		r.playing = false
+		r.mu.Unlock()
+		return false, err
+	}
+
 	if wasMuted {
 		_, _ = r.Assistant.Ntg.Mute(r.ID)
 	}
 
-	return resumed, nil
+	return true, nil
 }
 
 // Replay restarts the current track
@@ -347,17 +387,15 @@ func (r *RoomState) SetSpeed(
 	r.updatedAt = time.Now().Unix()
 	r.mu.Unlock()
 
-	if wasPaused {
-		return nil
-	}
+	if !wasPaused {
+		err := r.play()
+		if err != nil {
+			return err
+		}
 
-	err := r.play()
-	if err != nil {
-		return err
-	}
-
-	if wasMuted {
-		_, _ = r.Assistant.Ntg.Mute(r.ID)
+		if wasMuted {
+			_, _ = r.Assistant.Ntg.Mute(r.ID)
+		}
 	}
 
 	r.mu.Lock()
@@ -479,7 +517,18 @@ func (r *RoomState) play() error {
 	volume := r.volume
 	r.mu.RUnlock()
 	desc := getMediaDescription(r.filePath, r.position, r.speed, volume, r.track.Video)
-	return r.Assistant.Ntg.Play(r.ID, desc)
+	err := r.Assistant.Ntg.Play(r.ID, desc)
+	if err != nil {
+		gologging.ErrorF("Ntg.Play returned error: %s", err.Error())
+	} else {
+		gologging.Info("Ntg.Play returned success (nil)")
+		if calls := r.Assistant.Ntg.Calls(); calls != nil {
+			if ci, ok := calls[r.ID]; ok {
+				gologging.InfoF("Stream status after Play(): %v", ci.Playback)
+			}
+		}
+	}
+	return err
 }
 
 // SetVolume adjusts playback volume. It does not affect pause/mute state.
@@ -491,6 +540,7 @@ func (r *RoomState) SetVolume(volume float64) error {
 	r.mu.RLock()
 	hasTrack := r.track != nil && r.filePath != ""
 	wasPaused := r.paused
+	wasMuted := r.muted
 	r.mu.RUnlock()
 
 	if !hasTrack {
@@ -513,6 +563,11 @@ func (r *RoomState) SetVolume(volume float64) error {
 	err := r.play()
 	if err != nil {
 		return err
+	}
+
+	// Re-apply mute state since play rebuilds the pipeline
+	if wasMuted {
+		_, _ = r.Assistant.Ntg.Mute(r.ID)
 	}
 
 	return nil
@@ -570,7 +625,7 @@ func getAudioPipeline(
 	audioCmd := baseCmd
 	filters := []string{}
 
-	if volume > 0 && volume != 1.0 {
+	if volume != 1.0 {
 		filters = append(filters, "volume="+strconv.FormatFloat(volume, 'f', 2, 64))
 	}
 	if speed != 1.0 {

@@ -21,9 +21,12 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Laky-64/gologging"
 	"github.com/amarnathcjd/gogram/telegram"
+	tg "github.com/amarnathcjd/gogram/telegram"
 
 	"main/internal/config"
 	"main/internal/core"
@@ -41,6 +44,16 @@ type CbHandlerDef struct {
 	Handler telegram.CallbackHandler
 	Filters []telegram.Filter
 }
+
+type userState struct {
+	LastTime  time.Time
+	LastMsgID int32
+}
+
+var (
+	spamMutex sync.Mutex
+	userStats = make(map[int64]userState)
+)
 
 func plainTextCommandMiddleware(next telegram.MessageHandler) telegram.MessageHandler {
 	return func(m *telegram.NewMessage) error {
@@ -62,6 +75,42 @@ func plainTextCommandMiddleware(next telegram.MessageHandler) telegram.MessageHa
 	}
 }
 
+func antiSpamMiddleware(next telegram.MessageHandler) telegram.MessageHandler {
+	return func(m *telegram.NewMessage) error {
+		if m.IsService() {
+			return next(m)
+		}
+
+		userID := m.SenderID()
+		msgID := m.ID
+
+		now := time.Now()
+
+		spamMutex.Lock()
+		state, exists := userStats[userID]
+
+		if exists {
+			diff := now.Sub(state.LastTime)
+
+			if diff < 3*time.Second && state.LastMsgID != msgID {
+				spamMutex.Unlock()
+				fmt.Printf("[AntiSpam] 🚨 DROPPING spam from %d (Cooldown: %v)\n", userID, diff)
+
+				return tg.ErrEndGroup
+			}
+		}
+
+		userStats[userID] = userState{
+			LastTime:  now,
+			LastMsgID: msgID,
+		}
+		spamMutex.Unlock()
+
+		gologging.InfoF("[AntiSpam] ✅ PASSING message %d from %d to next handlers\n", msgID, userID)
+		return next(m)
+	}
+}
+
 var handlers = []MsgHandlerDef{
 	{Pattern: "json", Handler: jsonHandle},
 	{
@@ -73,6 +122,11 @@ var handlers = []MsgHandlerDef{
 		Pattern: "ev",
 		Handler: evalCommandHandler,
 		Filters: []telegram.Filter{ownerFilter},
+	},
+	{
+		Pattern: "robot",
+		Handler: sayHandler,
+		Filters: []telegram.Filter{ignoreChannelFilter},
 	},
 	{
 		Pattern: "(bash|sh)",
@@ -137,6 +191,11 @@ var handlers = []MsgHandlerDef{
 		Handler: broadcastHandler,
 		Filters: []telegram.Filter{ownerFilter, ignoreChannelFilter},
 	},
+	{
+		Pattern: "(ownerpanel)",
+		Handler: handleOwnerPanel,
+		Filters: []telegram.Filter{ownerFilter, privateFilter},
+	},
 
 	{
 		Pattern: "(ac|active|activevc|activevoice)",
@@ -172,7 +231,7 @@ var handlers = []MsgHandlerDef{
 	{
 		Pattern: "ping",
 		Handler: pingHandler,
-		Filters: []telegram.Filter{ignoreChannelFilter},
+		Filters: []telegram.Filter{sudoOnlyFilter, ignoreChannelFilter},
 	},
 	{
 		Pattern: "start",
@@ -185,7 +244,7 @@ var handlers = []MsgHandlerDef{
 		Filters: []telegram.Filter{ignoreChannelFilter, sudoOnlyFilter},
 	},
 	{
-		Pattern: "bug",
+		Pattern: "report",
 		Handler: bugHandler,
 		Filters: []telegram.Filter{ignoreChannelFilter},
 	},
@@ -210,6 +269,21 @@ var handlers = []MsgHandlerDef{
 	{
 		Pattern: "stream",
 		Handler: streamHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "vstream",
+		Handler: vstreamHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "(streamthumb|setstreamthumb)",
+		Handler: streamThumbHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "(delstreamthumb|rmstreamthumb)",
+		Handler: delStreamThumbHandler,
 		Filters: []telegram.Filter{superGroupFilter, authFilter},
 	},
 	{
@@ -259,10 +333,39 @@ var handlers = []MsgHandlerDef{
 		Handler: fvcplayHandler,
 		Filters: []telegram.Filter{superGroupFilter, authFilter},
 	},
-
 	{
-		Pattern: "(speed|setspeed|speedup)",
-		Handler: speedHandler,
+		Pattern: "speeddown",
+		Handler: speedDownHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "speedup",
+		Handler: speedUpHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "startcall",
+		Handler: startCallHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "endcall",
+		Handler: endCallHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "calllink",
+		Handler: callLinkHandler,
+		Filters: []telegram.Filter{superGroupFilter, adminFilter},
+	},
+	{
+		Pattern: "volumedown",
+		Handler: volumeDownHandler,
+		Filters: []telegram.Filter{superGroupFilter, authFilter},
+	},
+	{
+		Pattern: "volumeup",
+		Handler: volumeUpHandler,
 		Filters: []telegram.Filter{superGroupFilter, authFilter},
 	},
 	{
@@ -562,29 +665,137 @@ var handlers = []MsgHandlerDef{
 }
 
 var plainCommandAliases = map[string]string{
-	"پخش ویدیو": "vplay",
-	"پخش":       "play",
-	"پینگ":      "ping",
-	"راهنما":    "help",
-	"تنظیمات":   "settings",
-	"اتمام":     "stop",
-	"مکث":       "pause",
-	"ادامه":     "resume",
-	"بعدی":      "skip",
-	"لیست":      "queue",
+	"توقف پخش":        "stop",
+	"اتمام":           "stop",
+	"پایان کار":       "stop",
+	"مکث":             "pause",
+	"مکث پلیر":        "pause",
+	"ادامه":           "resume",
+	"ازسرگیری":        "resume",
+	"پخش بیصدا":       "mute",
+	"پخش باصدا":       "unmute",
+	"پخش":             "play",
+	"کاهش سرعت":       "speeddown",
+	"افزایش سرعت":     "speedup",
+	"کاهش صدا":        "volumedown",
+	"افزایش صدا":      "volumeup",
+	"جلو":             "seek",
+	"عقب":             "seekback",
+	"تنظیم صدا":       "setvolume",
+	"شروع کال":        "startcall",
+	"پایان کال":       "endcall",
+	"لینک کال":        "calllink",
+	"ربات":            "robot",
+	"رد کردن":         "skip",
+	"بعدی":            "skip",
+	"پاکسازی صف":      "clear",
+	"پاک کردن":        "clear",
+	"حذف از صف":       "remove",
+	"حذف":             "remove",
+	"تصادفی":          "shuffle",
+	"ترتیب تصادفی":    "shuffle",
+	"تکرار":           "loop",
+	"حلقه":            "loop",
+	"صف":              "queue",
+	"لیست پخش":        "queue",
+	"وضعیت":           "position",
+	"جایگاه":          "position",
+	"راهنما":          "help",
+	"پینگ":            "ping",
+	"تست سرعت":        "ping",
+	"آمار":            "stats",
+	"شروع":            "start",
+	"پیام همگانی":     "broadcast",
+	"فعال‌ها":         "active",
+	"پنل":             "settings",
+	"تنظیمات":         "settings",
+	"حالت ادمین":      "adminmode",
+	"حالت پخش":        "playmode",
+	"حذف دستور":       "cmddelete",
+	"پاکسازی خودکار":  "cleanmode",
+	"زبان":            "lang",
+	"پنل مالک":        "ownerpanel",
+	"مدیریت":          "ownerpanel",
+	"سودوها":          "sudoers",
+	"لیست سودو":       "sudoers",
+	"تعمیرات":         "maintenance",
+	"تعمیر و نگهداری": "maintenance",
+	"ری استارت":       "restart",
+	"راه اندازی مجدد": "restart",
+	"گروه‌ها":         "allgroups",
+	"مدیریت گروه‌ها":  "allgroups",
+	"گزارش":           "report",
+	"تنظیم ویژه":      "addauth",
+	"حذف ویژه":        "removeauth",
+	"لیست ویژها":      "authlist",
 }
 
 var plainCommandAliasKeys = []string{
-	"پخش ویدیو",
-	"پینگ",
-	"راهنما",
-	"تنظیمات",
-	"پخش",
+	"توقف پخش",
 	"اتمام",
+	"پایان کار",
 	"مکث",
+	"مکث پلیر",
 	"ادامه",
+	"ازسرگیری",
+	"حذف ویژه",
+	"تنظیم ویژه",
+	"لیست ویژها",
+	"گزارش",
+	"پخش بیصدا",
+	"پخش باصدا",
+	"پخش",
+	"کاهش سرعت",
+	"افزایش سرعت",
+	"کاهش صدا",
+	"افزایش صدا",
+	"جلو",
+	"عقب",
+	"تنظیم صدا",
+	"شروع کال",
+	"پایان کال",
+	"لینک کال",
+	"ربات",
+	"رد کردن",
 	"بعدی",
-	"لیست",
+	"پاکسازی صف",
+	"پاک کردن",
+	"حذف از صف",
+	"حذف",
+	"تصادفی",
+	"ترتیب تصادفی",
+	"تکرار",
+	"حلقه",
+	"صف",
+	"لیست پخش",
+	"وضعیت",
+	"جایگاه",
+	"راهنما",
+	"پینگ",
+	"تست سرعت",
+	"آمار",
+	"شروع",
+	"پیام همگانی",
+	"ارسال همگانی",
+	"کال‌های فعال",
+	"فعال‌ها",
+	"پنل",
+	"تنظیمات",
+	"حالت ادمین",
+	"حالت پخش",
+	"حذف دستور",
+	"پاکسازی خودکار",
+	"زبان",
+	"پنل مالک",
+	"مدیریت",
+	"سودوها",
+	"لیست سودو",
+	"تعمیرات",
+	"تعمیر و نگهداری",
+	"ری استارت",
+	"راه اندازی مجدد",
+	"گروه‌ها",
+	"مدیریت گروه‌ها",
 }
 
 func plainTextCommandHandler(m *telegram.NewMessage) error {
@@ -658,11 +869,17 @@ var cbHandlers = []CbHandlerDef{
 func Init(bot *telegram.Client, assistants *core.AssistantManager) {
 	bot.UpdatesGetState()
 	bot.Use(blacklistMessageMiddleware)
+	bot.Use(groupApprovalMiddleware)
+
+	//-------- Anti spam ---------//
+	bot.Use(antiSpamMiddleware)
+
 	bot.AddMessageHandler(
 		"^(?i).+$",
 		plainTextCommandHandler,
 		telegram.IsText,
 	).SetGroup(99)
+
 	// bot.Use(plainTextCommandMiddleware)
 
 	//va
@@ -689,11 +906,13 @@ func Init(bot *telegram.Client, assistants *core.AssistantManager) {
 	for _, h := range cbHandlers {
 		bot.AddCallbackHandler(
 			h.Pattern,
-			WithBlacklistCallback(SafeCallbackHandler(h.Handler)),
+			WithApprovalCallback(WithBlacklistCallback(SafeCallbackHandler(h.Handler))),
 			h.Filters...,
 		).
 			SetGroup(90)
 	}
+
+	bot.AddCallbackHandler("^chats_pg_|^tgl_app_|^approve_|^deny_|^noop$", handleGroupManagementCallbacks).SetGroup(84)
 
 	bot.On("edit:/eval", evalHandle).SetGroup(80)
 	bot.On("edit:/ev", evalCommandHandler).SetGroup(80)
@@ -705,6 +924,8 @@ func Init(bot *telegram.Client, assistants *core.AssistantManager) {
 	assistants.ForEach(func(a *core.Assistant) {
 		a.Ntg.OnStreamEnd(streamEndHandler)
 	})
+
+	InitVoiceChatHandlers(assistants)
 
 	go MonitorRooms()
 
@@ -718,7 +939,7 @@ func Init(bot *telegram.Client, assistants *core.AssistantManager) {
 	cplayCommands := []string{
 		"/cfplay", "/vcplay", "/fvcplay",
 		"/cpause", "/cresume", "/cskip", "/cstop",
-		"/cmute", "/cunmute", "/cvolume", "/cseek", "/cseekback",
+		"/cmute", "/cunmute", "/cseek", "/cseekback",
 		"/cjump", "/cremove", "/cclear", "/cmove",
 		"/cspeed", "/creplay", "/cposition", "/cshuffle",
 		"/cloop", "/cqueue", "/creload",

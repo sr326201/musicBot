@@ -19,6 +19,7 @@ package modules
 
 import (
 	"context"
+	"time"
 
 	"github.com/Laky-64/gologging"
 	"github.com/amarnathcjd/gogram/telegram"
@@ -30,6 +31,70 @@ import (
 	"main/internal/utils"
 	"main/ntgcalls"
 )
+
+func closePlaybackPanel(r *core.RoomState, text string) {
+	if r == nil {
+		return
+	}
+
+	statusMsg := r.StatusMsg()
+	if statusMsg == nil {
+		return
+	}
+
+	if _, err := statusMsg.Edit(text, &telegram.SendOptions{
+		ParseMode:   "HTML",
+		ReplyMarkup: telegram.Button.Clear(),
+	}); err != nil {
+		if telegram.MatchError(err, "MESSAGE_NOT_MODIFIED") {
+			return
+		}
+
+		gologging.ErrorF(
+			"Playback panel edit failed chat=%d: %v",
+			statusMsg.ChannelID(),
+			err,
+		)
+	}
+}
+
+func finishPlaybackRoom(r *core.RoomState, text string) {
+	if r == nil {
+		return
+	}
+
+	closePlaybackPanel(r, text)
+	scheduleOldPlayingMessage(r)
+	core.DeleteRoom(r.ID)
+}
+
+func buildPlaybackFinishedText(chatID int64, r *core.RoomState) string {
+	if r == nil {
+		return F(chatID, "playback_finished", locales.Arg{
+			"title":    "-",
+			"url":      "#",
+			"duration": "-",
+		})
+	}
+
+	track := r.Track()
+	if track == nil {
+		return F(chatID, "playback_finished", locales.Arg{
+			"title":    "-",
+			"url":      "#",
+			"duration": "-",
+		})
+	}
+
+	title := utils.EscapeHTML(utils.ShortTitle(track.Title, 35))
+
+	return F(chatID, "playback_finished", locales.Arg{
+		"title":    title,
+		"url":      track.URL,
+		"duration": utils.FormatDuration(track.Duration),
+		"by":       track.Requester,
+	})
+}
 
 func streamEndHandler(
 	chatID int64,
@@ -51,29 +116,73 @@ func streamEndHandler(
 	if !ok {
 		return
 	}
-	scheduleOldPlayingMessage(r)
+
+	// scheduleOldPlayingMessage(r)
+
+	// if ok, v := r.GetData("is_transitioning"); ok {
+	// 	if ok, v := v.(bool); ok && v {
+	// 		return
+	// 	}
+	// }
 
 	if ok, v := r.GetData("is_transitioning"); ok {
-		if ok, v := v.(bool); ok && v {
-			return
+		if b, _ := v.(bool); b {
+			return // اتاق در حال تغییر ترک است، دست نزن
 		}
 	}
 
+	// if !r.IsActiveChat() {
+	// 	if r.IsEnded() { // برگرداندن محافظت اصلی
+	// 		// finishPlaybackRoom(r, buildPlaybackFinishedText(r.ChatID, r))
+	// 		gologging.InfoF("im runnnnn !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	// 		closePlaybackPanel(r, buildPlaybackFinishedText(r.ChatID, r))
+	// 		scheduleOldPlayingMessage(r)
+	// 	}
+	// 	return
+	// }
+
 	r.SetData("is_transitioning", true)
+	r.SetData("transition_started_at", time.Now())
 	defer r.DeleteData("is_transitioning")
 
 	cid := r.ChatID
 	r.Parse()
 
+	// var t *state.Track
+	// var wasLooping bool
+	// if len(r.Queue()) == 0 && r.Loop() == 0 {
+	// 	// closePlaybackPanel(r, buildPlaybackFinishedText(cid, r))
+	// 	finishPlaybackRoom(r, buildPlaybackFinishedText(cid, r))
+	// 	// closePlaybackPanel(r, buildPlaybackFinishedText(r.ChatID, r))
+	// 	// scheduleOldPlayingMessage(r)
+	// 	// core.DeleteRoom(chatID)
+	// 	// core.Bot.SendMessage(cid, F(cid, "stream_queue_finished"))
+	// 	return
+	// } else {
+	// 	wasLooping = r.Loop() > 0
+	// 	t = r.NextTrack()
+
 	var t *state.Track
 	var wasLooping bool
+
+	// شرط را دوباره به 0 برمی‌گردانیم
 	if len(r.Queue()) == 0 && r.Loop() == 0 {
-		core.DeleteRoom(chatID)
-		core.Bot.SendMessage(cid, F(cid, "stream_queue_finished"))
+		finishPlaybackRoom(r, buildPlaybackFinishedText(cid, r))
 		return
 	} else {
+		// --- این بخش برای ادیت کردن پیام قبلی عالی کار کرد و نگهش می‌داریم ---
+		finishedText := buildPlaybackFinishedText(cid, r)
+		closePlaybackPanel(r, finishedText)
+		// -----------------------------------------------------------------
+
 		wasLooping = r.Loop() > 0
 		t = r.NextTrack()
+
+		// این محافظ را نگه می‌داریم تا در صورت باگ‌های پیش‌بینی نشده ربات خاموش نشود
+		if t == nil && !wasLooping {
+			core.DeleteRoom(r.ID)
+			return
+		}
 	}
 
 	statusText := F(cid, "stream_downloading_next")
@@ -137,10 +246,44 @@ func streamEndHandler(
 		ReplyMarkup: core.GetPlayMarkup(cid, r, false),
 	}
 
-	if t.Artwork != "" && shouldShowThumb(chatID) {
+	if t.Artwork != "" && shouldShowThumb(cid) {
 		opt.Media = utils.CleanURL(t.Artwork)
 	}
 
-	statusMsg, _ = utils.EOR(statusMsg, msgText, opt)
-	r.SetStatusMsg(statusMsg)
+	if statusMsg != nil {
+		edited, err := utils.EOR(statusMsg, msgText, opt)
+		if err != nil {
+			gologging.ErrorF(
+				"Now playing panel update failed for chat=%d: %v",
+				cid,
+				err,
+			)
+
+			newMsg, sendErr := core.Bot.SendMessage(cid, msgText, opt)
+			if sendErr != nil {
+				gologging.ErrorF(
+					"Now playing fallback send failed for chat=%d: %v",
+					cid,
+					sendErr,
+				)
+			} else if newMsg != nil {
+				r.SetStatusMsg(newMsg)
+			}
+		} else if edited != nil {
+			r.SetStatusMsg(edited)
+		}
+	} else {
+		newMsg, err := core.Bot.SendMessage(cid, msgText, opt)
+		if err != nil {
+			gologging.ErrorF(
+				"Now playing send failed for chat=%d: %v",
+				cid,
+				err,
+			)
+		} else if newMsg != nil {
+			r.SetStatusMsg(newMsg)
+		}
+	}
+
+	schedulePlaybackPanelRefresh(cid, r, "playing", t.Requester)
 }

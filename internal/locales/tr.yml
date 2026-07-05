@@ -21,6 +21,7 @@ HELP_OWNER_BTN: "👑 Sahibi"
 HELP_SUDOERS_BTN: "⚡ Sudo Kullanıcılar"
 
 BACK_BTN: "⬅️ Geri"
+SHARE_TRACK_BTN: "📤 Parçayı Paylaş"
 
 # basically this string used in /command [bool]
 invalid_bool: "⚠️ <b>Geçersiz değer.</b>\n'enable' veya 'disable' kullan."
@@ -169,6 +170,16 @@ cb_replaying: "🔁 <b>Mevcut parça yeniden oynatılıyor...</b>"
 cb_replay_failed: "❌ Parça yeniden oynatılamadı."
 cb_replay_success: "🔁 Parça yeniden oynatıldı."
 cb_replay_edited: "🔁 Parça {user} tarafından yeniden oynatıldı."
+
+# Share callback
+share_success: "📤 Parça gruba gönderildi!"
+share_telegram_skip: "ℹ️ Bu parça zaten Telegram'dan."
+share_failed: "❌ Parçayı paylaşırken hata oluştu.\nHata: <code>{error}</code>"
+share_track_text: |
+  🎵 <b>Şimdi Çalıyor:</b>
+  
+  <b>▫ Parça:</b> <a href="{url}">{title}</a>
+  <b>▫ Süre:</b> {duration}
 
 # Skip callback
 cb_skip_queue_empty: "⏹️ Oynatma durduruldu — sıra boş."

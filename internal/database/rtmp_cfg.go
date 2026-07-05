@@ -17,21 +17,50 @@
 
 package database
 
-func RTMP(chatID int64) (string, string, error) {
+func RTMP(chatID int64) (string, string, string, error) {
 	s, err := getChatSettings(chatID)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	return s.RTMP.URL, s.RTMP.Key, nil
+	return s.RTMP.URL, s.RTMP.Key, s.RTMP.Platform, nil
 }
 
-func SetRTMP(chatID int64, url, key string) error {
+func SetRTMP(chatID int64, url, key, platform string) error {
 	return modifyChatSettings(chatID, func(s *ChatSettings) bool {
-		if s.RTMP.URL == url && s.RTMP.Key == key {
+		if s.RTMP.URL == url && s.RTMP.Key == key && s.RTMP.Platform == platform {
 			return false
 		}
 		s.RTMP.URL = url
 		s.RTMP.Key = key
+		s.RTMP.Platform = platform
+		return true
+	})
+}
+
+func RTMPThumbnail(chatID int64) (string, error) {
+	s, err := getChatSettings(chatID)
+	if err != nil {
+		return "", err
+	}
+	return s.RTMPThumbnail, nil
+}
+
+func SetRTMPThumbnail(chatID int64, thumb string) error {
+	return modifyChatSettings(chatID, func(s *ChatSettings) bool {
+		if s.RTMPThumbnail == thumb {
+			return false
+		}
+		s.RTMPThumbnail = thumb
+		return true
+	})
+}
+
+func ClearRTMPThumbnail(chatID int64) error {
+	return modifyChatSettings(chatID, func(s *ChatSettings) bool {
+		if s.RTMPThumbnail == "" {
+			return false
+		}
+		s.RTMPThumbnail = ""
 		return true
 	})
 }

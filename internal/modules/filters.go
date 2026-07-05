@@ -18,11 +18,8 @@
 package modules
 
 import (
-	"strings"
-
 	tg "github.com/amarnathcjd/gogram/telegram"
 
-	"main/internal/config"
 	"main/internal/database"
 	"main/internal/utils"
 )
@@ -34,7 +31,12 @@ var (
 	ignoreChannelFilter = tg.CustomFilter(filterChannel)
 	sudoOnlyFilter      = tg.CustomFilter(filterSudo)
 	ownerFilter         = tg.CustomFilter(filterOwner)
+	privateFilter       = tg.CustomFilter(filterPrivate)
 )
+
+func filterPrivate(m *tg.NewMessage) bool {
+	return m.IsPrivate()
+}
 
 func filterSuperGroup(m *tg.NewMessage) bool {
 	if !filterChannel(m) {
@@ -70,7 +72,8 @@ func filterChatAdmins(m *tg.NewMessage) bool {
 	}
 	isAdmin, err := utils.IsChatAdmin(m.Client, m.ChannelID(), m.SenderID())
 	if err != nil || !isAdmin {
-		m.Reply(F(m.ChannelID(), "only_admin"))
+		//for replay if not admin
+		// m.Reply(F(m.ChannelID(), "only_admin"))
 		return false
 	}
 	return true
@@ -83,7 +86,8 @@ func filterAuthUsers(m *tg.NewMessage) bool {
 
 	mode, err := database.GetAdminMode(m.ChannelID())
 	if err == nil && mode == database.AdminModeAdminsOnly {
-		m.Reply(F(m.ChannelID(), "only_admin"))
+		//for replay if not admin
+		// m.Reply(F(m.ChannelID(), "only_admin"))
 	} else {
 		m.Reply(F(m.ChannelID(), "only_admin_or_auth"))
 	}
@@ -91,17 +95,7 @@ func filterAuthUsers(m *tg.NewMessage) bool {
 }
 
 func filterSudo(m *tg.NewMessage) bool {
-	is, _ := database.IsSudo(m.SenderID())
-
-	if config.OwnerID == 0 || (m.SenderID() != config.OwnerID && !is) {
-		if m.IsPrivate() ||
-			strings.HasSuffix(m.GetCommand(), m.Client.Me().Username) {
-			m.Reply(F(m.ChannelID(), "only_sudo"))
-		}
-		return false
-	}
-
-	return true
+	return requireSudoMessage(m)
 }
 
 func filterChannel(m *tg.NewMessage) bool {
@@ -139,20 +133,5 @@ func canUseAdminCommand(c *tg.Client, chatID, userID int64) bool {
 }
 
 func filterOwner(m *tg.NewMessage) bool {
-	if config.OwnerID == 0 || m.SenderID() != config.OwnerID {
-		if m.IsPrivate() ||
-			strings.HasSuffix(m.GetCommand(), m.Client.Me().Username) {
-			m.Reply(F(m.ChannelID(), "only_owner"))
-		}
-		return false
-	}
-	return true
-}
-
-func isOwnerOrSudo(userID int64) bool {
-	if config.OwnerID != 0 && userID == config.OwnerID {
-		return true
-	}
-	isSudo, err := database.IsSudo(userID)
-	return err == nil && isSudo
+	return requireOwnerMessage(m)
 }

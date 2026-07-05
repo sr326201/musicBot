@@ -158,11 +158,11 @@ func setBotCommands(bot *telegram.Client) {
 
 	entries := []scopedCmds{
 		{&telegram.BotCommandScopeUsers{}, AllCommands.PrivateUserCommands},
-		{&telegram.BotCommandScopeChats{}, AllCommands.GroupUserCommands},
-		{
-			&telegram.BotCommandScopeChatAdmins{},
-			append(AllCommands.GroupUserCommands, AllCommands.GroupAdminCommands...),
-		},
+		// {&telegram.BotCommandScopeChats{}, AllCommands.GroupUserCommands},
+		// {
+		// 	&telegram.BotCommandScopeChatAdmins{},
+		// 	append(AllCommands.GroupUserCommands, AllCommands.GroupAdminCommands...),
+		// },
 		{
 			&telegram.BotCommandScopePeer{
 				Peer: &telegram.InputPeerUser{UserID: config.OwnerID},

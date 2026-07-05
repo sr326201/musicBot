@@ -21,6 +21,7 @@ HELP_OWNER_BTN: "👑 المالك"
 HELP_SUDOERS_BTN: "⚡ المساعدون"
 
 BACK_BTN: "⬅️ عودة"
+SHARE_TRACK_BTN: "📤 مشاركة المقطع"
 
 # basically this string used in /command [bool]
 invalid_bool: "⚠️ <b>قيمة غير صالحة.</b>\nاستخدم 'enable' (تفعيل) أو 'disable' (تعطيل)."
@@ -170,6 +171,16 @@ cb_replaying: "🔁 <b>جاري إعادة تشغيل المقطع الحالي.
 cb_replay_failed: "❌ فشل إعادة تشغيل المقطع."
 cb_replay_success: "🔁 تمت إعادة تشغيل المقطع."
 cb_replay_edited: "🔁 تمت إعادة تشغيل المقطع بواسطة {user}."
+
+# Share callback
+share_success: "📤 تم إرسال المقطع إلى المجموعة!"
+share_telegram_skip: "ℹ️ هذا المقطع من تيليجرام بالفعل."
+share_failed: "❌ فشل في مشاركة المقطع.\nالخطأ: <code>{error}</code>"
+share_track_text: |
+  🎵 <b>جاري التشغيل الآن:</b>
+  
+  <b>▫ المقطع:</b> <a href="{url}">{title}</a>
+  <b>▫ المدة:</b> {duration}
 
 # Skip callback
 cb_skip_queue_empty: "⏹️ توقف التشغيل — قائمة الانتظار فارغة."

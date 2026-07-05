@@ -18,12 +18,10 @@
 package modules
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/amarnathcjd/gogram/telegram"
 
-	"main/internal/core"
 	"main/internal/locales"
 	"main/internal/utils"
 )
@@ -58,6 +56,7 @@ func cstopHandler(m *telegram.NewMessage) error {
 }
 
 func handleStop(m *telegram.NewMessage, cplay bool) error {
+
 	r, err := getEffectiveRoom(m, cplay)
 	if err != nil {
 		m.Reply(err.Error())
@@ -68,35 +67,59 @@ func handleStop(m *telegram.NewMessage, cplay bool) error {
 		return telegram.ErrEndGroup
 	}
 
-	isPaused := r.IsPaused()
-	isMuted := r.IsMuted()
+	reactToCommandMessage(m, "👍")
 
-	if isPaused || isMuted {
-		stopSuggestFloodKey := fmt.Sprintf(
-			"stop_suggest:%d",
-			r.ID,
-		)
-		if utils.GetFlood(stopSuggestFloodKey) <= 0 {
-			utils.SetFlood(stopSuggestFloodKey, stopConfirmSuggestionCooldown)
-			msgKey := "stop_confirm_paused"
-			if isMuted {
-				msgKey = "stop_confirm_muted"
-			}
-			m.Reply(F(m.ChannelID(), msgKey), &telegram.SendOptions{
-				ReplyMarkup: core.GetStopConfirmMarkup(m.ChannelID(), r, isPaused),
-			})
-			return telegram.ErrEndGroup
-		}
-	}
+	// isPaused := r.IsPaused()
+	// isMuted := r.IsMuted()
 
-	scheduleOldPlayingMessage(r)
-	core.DeleteRoom(r.ID)
-	m.Reply(
-		F(
-			m.ChannelID(),
-			"stopped",
-			locales.Arg{"user": utils.MentionHTML(m.Sender)},
-		),
-	)
+	// if isPaused || isMuted {
+	// 	stopSuggestFloodKey := fmt.Sprintf(
+	// 		"stop_suggest:%d",
+	// 		r.ID,
+	// 	)
+	// 	if utils.GetFlood(stopSuggestFloodKey) <= 0 {
+	// 		utils.SetFlood(stopSuggestFloodKey, stopConfirmSuggestionCooldown)
+	// 		msgKey := "stop_confirm_paused"
+	// 		if isMuted {
+	// 			msgKey = "stop_confirm_muted"
+	// 		}
+	// 		m.Reply(F(m.ChannelID(), msgKey), &telegram.SendOptions{
+	// 			ReplyMarkup: core.GetStopConfirmMarkup(m.ChannelID(), r, isPaused),
+	// 		})
+	// 		return telegram.ErrEndGroup
+	// 	}
+	// }
+
+	track := r.Track()
+	title := utils.EscapeHTML(utils.ShortTitle(track.Title, 35))
+
+	// closePlaybackPanel(r, F(m.ChannelID(), "stopped", locales.Arg{
+	// 	"user":     utils.MentionHTML(m.Sender),
+	// 	"title":    title,
+	// 	"duration": utils.FormatDuration(track.Duration),
+	// 	"url":      track.URL,
+	// }))
+
+	// scheduleOldPlayingMessage(r)
+	// core.DeleteRoom(r.ID)
+	// m.Reply(
+	// 	F(
+	// 		m.ChannelID(),
+	// 		"stopped",
+	// 		locales.Arg{"user": utils.MentionHTML(m.Sender)},
+	// 	),
+	// )
+
+	stoppedText := F(
+		m.ChannelID(),
+		"stopped",
+		locales.Arg{
+			"user":     utils.MentionHTML(m.Sender),
+			"title":    title,
+			"duration": utils.FormatDuration(track.Duration),
+			"url":      track.URL,
+		})
+	finishPlaybackRoom(r, stoppedText)
+	// m.Reply(stoppedText)
 	return telegram.ErrEndGroup
 }

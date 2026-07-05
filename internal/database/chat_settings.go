@@ -25,8 +25,9 @@ import (
 )
 
 type RTMPConfig struct {
-	URL string `bson:"rtmp_url"`
-	Key string `bson:"rtmp_key"`
+	URL      string `bson:"rtmp_url"`
+	Key      string `bson:"rtmp_key"`
+	Platform string `bson:"rtmp_platform"`
 }
 
 type ChatSettings struct {
@@ -36,6 +37,7 @@ type ChatSettings struct {
 	AdminMode             AdminMode  `bson:"admin_mode,omitempty"`
 	Language              string     `bson:"language"`
 	RTMP                  RTMPConfig `bson:"rtmp_config"`
+	RTMPThumbnail         string     `bson:"rtmp_thumb,omitempty"`
 	AssistantIndex        int        `bson:"ass_index,omitempty"`
 	ThumbnailsDisabled    bool       `bson:"no_thumb"`
 	PlayModeAdminsOnly    bool       `bson:"play_mode"`

@@ -4,11 +4,11 @@ name: "🇮🇷 فارسی"
 CONFIRM_RESUME_BTN: "▶️ ادامه"
 CONFIRM_UNMUTE_BTN: "🔊 بدون صدا"
 CONFIRM_STOP_BTN: "⏹️ توقف"
-ADD_ME_BTN: "⚡ من را به گروهت اضافه کن"
+ADD_ME_BTN: "ادم کن تو گروهت"
 BROADCAST_CANCEL_BTN: "🚫 لغو ارسال همگانی"
 CLOSE_BTN: "بستن"
 DOWNLOAD_CANCEL_BTN: "🚦 لغو دانلود"
-GC_HELP_BTN: "📒 فرمان‌ها"
+GC_HELP_BTN: "📒"
 
 START_HELP_BTN: "❓ راهنما و فرمان‌ها"
 
@@ -21,12 +21,44 @@ HELP_OWNER_BTN: "👑 صاحب"
 HELP_SUDOERS_BTN: "⚡ سودوها"
 
 BACK_BTN: "⬅️ بازگشت"
+SHARE_TRACK_BTN: "📤 دریافت"
 
 # basically this string used in /command [bool]
 invalid_bool: "⚠️ <b>مقدار نامعتبر است.</b>\nاز 'enable' یا 'disable' استفاده کن."
 
 active_chats_info: "📊 <b>چت‌های فعال:</b>\n\nتعداد <i>{count}</i> چت فعال در کل سیستم ربات وجود دارد."
 active_chats_info_with_broken: "📊 <b>چت‌های فعال:</b>\n\nتعداد <i>{count}</i> چت فعال در کل سیستم ربات وجود دارد، اما <i>{broken}</i> تای آن‌ها ممکن است در نمایش درست مشکل داشته باشند."
+
+wait_approval: "⚠️ <b>اینجا هنوز توسط مدیریت تایید نشده است.</b>\nلطفاً منتظر بمانید تا گروه شما بررسی و تایید شود."
+approval_usage_approve: "❌ <b>روش استفاده:</b>\n<code>/approve [آیدی عددی یا یوزرنیم گروه]</code>"
+approval_usage_unapprove: "❌ <b>روش استفاده:</b>\n<code>/unapprove [آیدی عددی یا یوزرنیم گروه]</code>"
+approval_invalid_chat_identifier: "❌ چت مورد نظر یافت نشد یا شناسه نامعتبر است.\n<b>خطا:</b> {error}"
+approval_approve_chat_success: "✅ گروه <code>{id}</code> با موفقیت تایید شد و ربات در آن فعال گردید."
+approval_unapprove_chat_fail: "❌ لغو تاییدیه گروه با خطا مواجه شد:\n{error}"
+approval_unapprove_chat_success: "🔓 تاییدیه گروه <code>{id}</code> با موفقیت لغو شد."
+approval_list_title: "📋 <b>لیست گروه‌های تایید شده توسط مدیریت:</b>"
+approval_fetch_chats_fail: "❌ خطا در دریافت لیست گروه‌های تایید شده:\n{error}"
+
+allgroups_empty: "📊 <b>ربات هنوز در هیچ گروهی عضو نشده است یا دیتابیس خالی است.</b>"
+allgroups_title: "📊 <b>گروه‌های ربات</b>\n\n<b>مجموع:</b> {total}\n🟢 <b>تایید شده:</b> {approved}\n🔴 <b>در انتظار:</b> {pending}"
+
+approval_group_activated: "🎉 <b>ربات با موفقیت در اینجا فعال شد.</b>\n\n⚙️ هم‌اکنون تمامی قابلیت‌ها، دستورات و سیستم پخش موزیک/ویدیو برای شما در دسترس است.\n💡 برای دریافت راهنمایی پیوی پیام بده."
+approval_group_denied: "❌ <b>درخواست این گروه توسط مدیریت رد شد.</b>\nربات اکنون گروه را ترک می‌کند."
+
+approval_nav_prev: "⬅️ قبلی"
+approval_nav_next: "بعدی ➡️"
+approval_nav_page: "صفحه {page}/{total}"
+approval_toggle_removed: "🔴 گروه از لیست تایید شده‌ها حذف شد"
+approval_toggle_added: "🟢 گروه با موفقیت تایید شد"
+approval_toggle_denied: "❌ گروه رد شد و ربات آن را ترک می‌کند"
+approval_error_loading: "❌ خطا در بارگذاری صفحه"
+approval_error_loading_detail: "❌ خطا در بارگذاری اطلاعات تایید: <code>{error}</code>"
+approval_mgmt_denied: "⛔️ شما دسترسی مدیریت این بخش را ندارید!"
+approval_btn_approve: "✅ تایید گروه"
+approval_btn_deny: "❌ رد و خروج"
+approval_owner_request_resolved: "✅ درخواست به‌روزرسانی شد.\n<b>وضعیت:</b> {status}"
+approval_owner_status_approved: "تایید شد"
+approval_owner_status_denied: "رد شد"
 
 adminmode_help: |
   🛡️ <b>حالت فرمان‌های ادمین</b>
@@ -61,7 +93,7 @@ addauth_success_with_count: "✅ {user} اضافه شد.\nحالا {count}/{limi
 addauth_success: "✅ کاربر {user} با موفقیت به لیست مجازها اضافه شد."
 
 # 🤖 Bot Added to Chat
-bot_added_normal: "🎵 ممنون که من را اضافه کردی! برای شروع پخش موسیقی از /play [song] استفاده کن."
+bot_added_normal: "آقا ما اومدیم بلند نشید ."
 
 # 🛠️ Bot Added During Maintenance
 bot_added_maintenance: "⚠️ الان دارم تعمیر و نگهداری می‌شم و به‌زودی برمی‌گردم. ممنون از صبرت! ⏰"
@@ -69,12 +101,9 @@ maint_reason_generic: "<i>📝 دلیل: {reason}</i>"
 
 # ⚠️ Bot Demotion
 bot_demotion_goodbye: |
-  <b>⚠️ دسترسی از دست رفت</b>
+  <b>منو از ادمینی در میاری ؟ </b>
+  <b>خدافظ بابا!</b>
 
-  من <b>از ادمینی پایین آورده شدم</b> و دیگه نمی‌تونم کارهام را انجام بدم.
-  بدون دسترسی درست نمی‌تونم اینجا کار کنم، پس <i>الان از چت می‌رم</i>.
-
-  <b>خداحافظ 👋</b>
 broadcast_already_running: "⚠️ یک ارسال همگانی از قبل در حال اجراست.\n\nلطفاً صبر کن کامل شود یا اول با این‌ها لغوش کن:\n• <code>/broadcast -cancel</code>\n• یا روی دکمه لغو در پیام پیشرفت بزن"
 broadcast_parse_failed: "❌ تحلیل فرمان ارسال همگانی ناموفق بود:\n<code>{error}</code>"
 broadcast_no_content: "⚠️ محتوایی برای ارسال همگانی داده نشده.\n\n<b>نحوه استفاده:</b> <code>{cmd} [متن یا پاسخ به پیام]</code>\n\n<b>مثال:</b>\n<code>{cmd} سلام بچه‌ها!</code>"
@@ -111,13 +140,16 @@ blacklist_block_user_success: "✅ کاربر مسدود شد: <code>{id}</code>
 blacklist_unblock_user_success: "✅ مسدودیت کاربر برداشته شد: <code>{id}</code>"
 blacklist_block_chat_success: "✅ چت مسدود شد: <code>{id}</code>"
 blacklist_unblock_chat_success: "✅ مسدودیت چت برداشته شد: <code>{id}</code>"
+blacklist_block_user_fail: "⚠️ مسدود کردن کاربر ناموفق بود: {error}"
 blacklist_unblock_user_fail: "⚠️ برداشتن مسدودیت کاربر ناموفق بود: {error}"
+blacklist_block_chat_fail: "⚠️ مسدود کردن چت ناموفق بود: {error}"
 blacklist_unblock_chat_fail: "⚠️ برداشتن مسدودیت چت ناموفق بود: {error}"
 blacklist_fetch_chats_fail: "⚠️ دریافت چت‌های مسدود ناموفق بود: {error}"
 blacklist_fetch_users_fail: "⚠️ دریافت کاربرهای مسدود ناموفق بود: {error}"
 blacklist_list_title: "📛 <b>لیست سیاه</b>"
 blacklist_list_chats: "💬 <b>چت‌ها:</b>"
 blacklist_list_users: "👤 <b>کاربرها:</b>"
+blacklist_list_none: "• موردی ندارد"
 
 # 🎧 CPlay (Channel Play)
 
@@ -146,9 +178,9 @@ cb_pause_success: "⏸️ آهنگ در {position} متوقف شد"
 cb_pause_message: |
   <b>⏸️ آهنگ متوقف شد</b>
 
-  <b>▫ آهنگ:</b> <a href="{url}">{title}</a>
-  <b>▫ موقعیت:</b> {position} / {duration}
-  <b>▫ متوقف‌شده توسط:</b> {user}
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• موقعیت:</b> {position} / {duration}
+  <b>• متوقف‌شده توسط:</b> {user}
 
 # Resume callback
 cb_already_playing: "ℹ️ آهنگ از قبل در حال پخش است."
@@ -157,42 +189,59 @@ cb_resume_success: "▶️ در {position} ادامه داده شد."
 cb_resume_message: |
   <b>🎵 در حال پخش:</b>
 
-  <b>▫ آهنگ:</b> <a href="{url}">{title}</a>
-  <b>▫ مدت:</b> {duration}
-  <b>▫ ادامه داده‌شده توسط:</b> {user}
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• ادامه داده‌شده توسط:</b> {user}
 
 # Replay callback
 cb_replaying: "🔁 <b>Replaying current track...</b>"
 cb_replay_failed: "❌ Failed to replay track."
-cb_replay_success: "🔁 آهنگ replayed."
-cb_replay_edited: "🔁 آهنگ replayed by {user}."
+cb_replay_success: "🔁 آهنگ ریپلی شد."
+cb_replay_edited: "🔁 آهنگ توسط {user} ریپلی شد"
+
+# Share callback
+share_success: "📤 آهنگ به گروه فرستاده شد!"
+share_telegram_skip: "ℹ️ این آهنگ از تلگرام است."
+share_failed: "❌ اشتراک‌گذاری آهنگ ناموفق بود.\nخطا: <code>{error}</code>"
+share_track_text: |
+  🎵 <b>در حال پخش:</b>
+
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
 
 # Skip callback
-cb_skip_queue_empty: "⏹️ پخش stopped — queue empty."
+cb_skip_queue_empty: "⏹️ چیزی برا پخش نیست"
+
 cb_skip_download_failed: "❌ Failed to download next track."
 cb_skip_play_failed: "❌ Failed to play next track."
-cb_skip_success: "⏭️ آهنگ skipped."
-cb_skip_edited: "⏭️ Skipped by {user}"
+cb_skip_success: "⏭️ داریم میریم بعدی"
+cb_skip_edited: |
+  ➡️ <b>اسکیپ شد</b>
+
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• درخواستیه:</b> {by}
 
 # Stop callback
-cb_stop_success: "⏹️ پخش stopped."
+cb_stop_success: "⏹️ پخش استوپ شد."
 
 # Mute/Unmute callback
-cb_mute_success: "🔇 Muted."
+cb_mute_success: "میوته 🔇"
 cb_mute_message: |
-  <b>🔇 پخش Muted</b>
+  <b>🔇 پخش میوت شد</b>
 
-  <b>▫ آهنگ:</b> <a href="{url}">{title}</a>
-  <b>▫ بی‌صداشده توسط:</b> {user}
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• بی‌صداشده توسط:</b> {user}
 
-cb_unmute_success: "🔊 Unmuted."
+cb_unmute_success: "آن میوته 🔊"
 
-cb_seek_success: "⏩ Sought forward {seconds} seconds"
+cb_seek_success: "⏩ انقد {seconds} رفت جلو"
 cb_seek_near_end: "⚠️ Cannot seek forward {seconds} seconds — about to reach end."
-cb_seek_edited: "⏩ Sought {seconds} seconds — by {user}"
+cb_seek_edited: "⏩ انقد {seconds} رفت جولو — توسط {user}"
 
-cb_seekback_success: "⏪ Sought back {seconds} seconds"
-cb_seekback_edited: "⏪ Sought back {seconds} seconds — by {user}"
+cb_seekback_success: "⏪ انقد {seconds} رفت عقب"
+cb_seekback_edited: "⏪ انقد {seconds} رفت عقب — توسط {user}"
 
 # 🗑️ Delete auth
 del_auth_not_authorized: "⚠️ That user isn’t authorized — nothing to remove."
@@ -230,6 +279,10 @@ bug_report_format: |
   <pre>{report}</pre>
 clear_no_active: "⚠️ <b>هیچ پخش فعالی یا صفی برای پاک کردن وجود ندارد.</b>"
 clear_success: "✅ صف توسط {user} پاک شد.\n<i>قبل از اضافه کردن آهنگ‌های جدید، می‌تونی با <code>/{cmd}</code> آن را برگردانی</i>"
+
+prem: |
+  <emoji id="6134147226441614765">😒</emoji> ɪᴛ ᴡᴀs ᴀ ɢʀᴇᴀᴛ ᴊᴏᴜʀɴᴇʏ ᴡɪᴛʜ ʏ'ᴀʟʟ, ᴛʜᴀɴᴋs ғᴏʀ ᴇᴠᴇʀʏᴛʜɪɴɢ... 
+  <emoji id="6134366475932141065">😗</emoji> <emoji id="5231492061718390437">❄️</emoji> ʜᴀᴘᴘʏ ɴᴇᴡ ʏᴇᴀʀ ᴇᴠᴇ<emoji id="5231492061718390437">❄️</emoji>
 
 err_assistant_banned: |
   <b>🚫 دسترسی دستیار محدود شد</b>
@@ -303,14 +356,14 @@ err_fetch_tracks: |
   Please try again later.
 
 err_download_internal: |
-  ⚠️ <b>Download failed</b> due to an unexpected internal error.
-  Please try again later.
+  نت مشکل داره انگار دانلود نشد!
+  یه تسته دیگه بزن...
 
-flood_seconds: "⏳ آروم‌تر! {duration} ثانیه دیگر دوباره امتحان کن."
+flood_seconds: "Don't spam 🤫"
 flood_minutes: "⏳ لطفاً {duration} دقیقه صبر کن تا دوباره بتوانی از این فرمان استفاده کنی."
 
-help_private_only: "🤖 سلام! برای راهنما و فرمان‌های ربات، لطفاً مستقیم در پیوی به من پیام بده — در چت خصوصی سریع‌تر جواب می‌دم!"
-help_main: "📚 <b>منوی راهنما</b>\n\nیکی از دسته‌های زیر را انتخاب کن تا فرمان‌ها و روش استفاده‌شان را برای مدیریت، کنترل و شخصی‌سازی ربات ببینی."
+help_private_only: "👋 راهنما فقط توی پیوی در دسترسه؛"
+help_main: "📚 یه بخش رو انتخاب کن تا دستوراتش رو ببینی."
 
 jump_no_active: "⚠️ آهنگ فعالی برای پریدن داخلش وجود ندارد."
 jump_usage: "⚠️ لطفاً تعداد ثانیه را وارد کن.\nمثال: <code>{cmd} 120</code>"
@@ -397,7 +450,7 @@ maint_reason_updated: "✅ Maintenance reason updated.\n📝 دلیل: {reason}"
 maint_enabled: "✅ Maintenance mode has been <b>enabled</b> successfully."
 maint_enabled_reason: "✅ Maintenance mode enabled.\n📝 دلیل: {reason}"
 maint_disabled: "✅ Maintenance mode has been <b>disabled</b> successfully."
-maint_entering: "⚠️ Bot is entering maintenance mode..."
+maint_entering: "⚠️ حالت تعمیرات سرویس فعاله..."
 enabled_with_reason: "🟢 Enabled\n📝 دلیل: {reason}"
 
 move_usage: "⚠️ نحوه استفاده: <code>{cmd} [from] [to]</code>"
@@ -449,6 +502,9 @@ nothumb_updated: "🖼️ Thumbnail display has been {action}."
 cmddelete_status: "🗑️ <b>Command Delete Control</b>\n\nWhen enabled, I will automatically delete command messages.\nنحوه استفاده: {cmd} [enable|disable]\nCurrent state: {action}"
 cmddelete_updated: "🗑️ Command deletion has been {action}."
 
+only_admin_or_auth_cb_hes: "دسترسی فقط برای ادمین‌ها و کاربران مجاز است."
+only_admin_cb_hes: "ادمین فقط میتونه این اکشنو انجام بده."
+
 only_admin: "⚠️ <b>Permission Denied!</b>\nOnly <b>admins</b> can control these actions. You can still play songs 🎵.\n\nIf you believe you are an admin, please use /reload to refresh your admin status."
 only_admin_cb: "⚠️ Only admins can do these actions."
 only_admin_or_auth: "⚠️ <b>Access Denied</b>\nOnly <b>admins</b> or <b>authorized users</b> can control these actions.\n\nIf you recently became an admin, use /reload to refresh your permissions."
@@ -484,9 +540,9 @@ play_download_failed: |
 play_added_to_queue_single: |
   <b>🎵 به صف اضافه شد:</b> #{index}
 
-  <b>▫ آهنگ:</b> <a href="{url}">{title}</a>
-  <b>▫ مدت:</b> {duration}
-  <b>▫ درخواست‌شده توسط:</b> {by}
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• درخواست‌شده توسط:</b> {by}
 
 play_multiple_tracks_too_long_header: "<b>⚠️ {count} tracks were skipped (max duration {limit_mins} mins):</b>"
 play_multiple_tracks_too_long_item: "— <i>{title}</i>"
@@ -496,7 +552,7 @@ play_failed: "❌ Failed to play\nError: {error}"
 play_unable: "<b> ❌ Unable to Play </b>\n\n<i>Please <b>restart the voice</b> chat.</i>"
 play_downloading_song: '📥 Downloading song "{title}"'
 play_download_canceled: "⚠️ Download canceled by {user}."
-play_already_in_queue: "✅ <b>آهنگ already added!</b>\n\n<i>{title}</i> is already playing or in the queue."
+play_already_in_queue: "✅ <b>داره پخش میشه</b>\n\n<i>{title}</i>"
 play_added_multiple_header: "➕ <b>{count} آهنگ اضافه شد</b> by {user}"
 play_queue_limit_hint: "⚠️ <i>سقف صف پر شده — some tracks were skipped.</i>"
 play_queue_view_hint: "<i>Use /queue to view full list.</i>"
@@ -598,7 +654,7 @@ restart_confirm_bot: "♻️ Restarting the bot..."
 restart_confirm_replay_done: "⏮️ Current song replayed successfully."
 
 room_not_active_cb: "⚠️ Nothing playing right now."
-room_no_active: "⚠️ <b>پخش فعالی نداریم.</b>\n\n<i>There's nothing playing right now.</i>"
+room_no_active: "⚠️ <b>این پخش فعال نیست.</b>"
 room_not_linked: "⚠️ This channel isn't linked to any group."
 
 room_already_paused: "⏸️ آهنگ is already paused. Tap ▶️ Resume to continue."
@@ -619,9 +675,9 @@ rtmp_play_failed: |
 rtmp_now_streaming: |
   📡 <b>Now Streaming (RTMP):</b>
 
-  <b>▫ آهنگ:</b> <a href="{url}">{title}</a>
-  <b>▫ مدت:</b> {duration}
-  <b>▫ Started by:</b> {by}
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• Started by:</b> {by}
 
   ⚠️ <i>Note: RTMP has ~15-30s buffering delay</i>
 
@@ -635,18 +691,20 @@ rtmp_stopped: |
 rtmp_status_playing: |
   📡 <b>RTMP Status</b>
 
-  <b>▫ State:</b> ▶️ Streaming
-  <b>▫ Position:</b> {position}
+  <b>• State:</b> ▶️ Streaming
+  <b>• Position:</b> {position}
 
 rtmp_dm_only: "⚠️ Use this command in DM."
 
-rtmp_setup_usage: "⚙️ /setrtmp <chat_id> <rtmp_url>"
+rtmp_setup_usage: "⚙️ /setrtmp <chat_id> <platform> <rtmp_url>"
 
 generic_error: "❌ Something went wrong: <code>{error}</code>"
 
 rtmp_invalid_chat_id: "❌ Invalid chat ID. مثال: <code>-1001234567890</code>"
 
-rtmp_parse_failed: "❌ Invalid RTMP URL. Use: <code>/setrtmp <chat_id> <rtmp_url></code>"
+rtmp_invalid_platform: "❌ Invalid platform. Valid platforms are: {platforms}"
+
+rtmp_parse_failed: "❌ Invalid RTMP URL. Use: <code>/setrtmp <chat_id> <platform> <rtmp_url></code>"
 
 rtmp_streaming_not_supported: |
   ⚠️ <b>Streaming not supported</b>
@@ -818,7 +876,10 @@ stop_confirm_muted: |
 
   Do you want to unmute or stop it completely?
 
-stopped: "⏹️ <b>پخش stopped and cleared by {user}.</b>"
+stopped: |
+  ⏹️ <b>پخش توسط {user} متوقف شد.</b>
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
 
 shuffle_current_state: "🔀 Currently shuffle is <b>{state}</b> for this chat.\n\nUse <code>{cmd}</code> to toggle it."
 shuffle_updated: "🔀 Shuffle <b>{state}</b> by {user}."
@@ -860,22 +921,20 @@ speed_failed: |
   ❌ Failed to change speed to <b>{speed}x</b>.
   Error: <code>{error}</code>
 
-speed_reset_success: "✅ پخش speed reset to <b>1.0x</b> by {user}"
+speed_reset_success: "✅ سرعت پخش ریست شد to <b>1.0x</b> توسط {user}"
 
-speed_set: "🚀 سرعت پخش روی <b>{speed}x</b> تنظیم شد توسط {user}."
+speed_set: "سرعت پخش روی {speed}x تنظیم شد 🚀"
 speed_set_with_reset: |
-  🚀 سرعت پخش روی <b>{speed}x</b> تنظیم شد توسط {user}.
-  ⏳ خودبه‌خوداً پس از <b>{duration}</b> ثانیه بازنشانی می‌شود.
-
+  🚀 سرعت پخش {speed}x
+#  ⏳ خودبه‌خوداً پس از <b>{duration}</b> ثانیه بازنشانی می‌شود.
 # 🔊 Volume messages
 volume_current: "🔊 <b>صدای فعلی:</b> <code>{volume}</code> برای 🎵 <u>{title}</u>\n\n💡 از <code>{cmd} 100</code> برای بازگرداندن صدا استفاده کن."
-volume_already_set: "ℹ️ صدا از قبل روی <b>{volume}</b> برای 🎵 <b>{title}</b> تنظیم شده"
+volume_already_set: "جا نداره دیگه!"
 volume_invalid: "❌ مقدار صدا نامعتبر است.\nمثال: <code>{cmd} 50</code> یا <code>{cmd} 75</code>"
 volume_failed: |
   ❌ تغییر صدا به <b>{volume}</b> ناموفق بود.
   خطا: <code>{error}</code>
-volume_set: "🔊 صدا توسط {user} روی <b>{volume}</b> تنظیم شد."
-
+volume_set: "روی {volume} تنظیم شد  🔊"
 volume_usage: |
   💡 <b>نحوه استفاده:</b>
   <code>{cmd} [مقدار]</code> — تنظیم صدا (۰ تا ۱۰۰)
@@ -915,19 +974,35 @@ spt_result: |
   Download: <code>{dl_mbps} Mbps</code>
   Upload: <code>{ul_mbps} Mbps</code>
 start_private: |
-  سلام {user}، من {bot} هستم.
+  هی {user}! 👋
 
-  من یک ربات استریم تلگرام با چند قابلیت کاربردی‌ام. از پلتفرم‌هایی مثل YouTube، Spotify، JioSaavn و SoundCloud پشتیبانی می‌کنم.
+  من {bot} هستم؛ ربات استریم .
 
-  با خیال راحت من را به گروه‌هات اضافه کن.
+  🎵 YouTube
+  🎧 Spotify
+  ☁️ SoundCloud
+  🎼 JioSaavn
+start_private_sudo: |
+  سلام {user} ⚡️
+
+  سطح دسترسی: <b>SUDO</b>
+
+  پنل مدیریتی، ابزارهای نظارتی و دستورات پیشرفته برای شما فعال هستند.
+
+start_private_owner: |
+  خوش اومدی رئیس. 👑
+
+  <b>Owner Mode</b> فعاله.
+  کنترل کامل {bot} در اختیار شماست؛ از مدیریت تنظیمات گرفته تا کنترل تمام ماژول‌ها.
+
 start_group: |
   <b>ربات در این گروه فعاله.</b>
 stream_channelid_fail: |
   ⚠️ نتوانستم شناسه کانال متصلت را بگیرم.
 stream_queue_finished: |
-  🎵 <b>صف تمام شد!</b>
+  🎵 <b>تمام شد!</b>
 stream_downloading_next: |
-  📥 در حال دانلود آهنگ بعدی...
+  📥 در حال دانلود بعدی...
 stream_download_fail: |
   ❌ دانلود ناموفق بود.
   خطا: <code>{error}</code>
@@ -936,11 +1011,13 @@ stream_play_fail: |
 stream_now_playing: |
   🎵 <b>در حال پخش:</b>
 
-  <b>▫ آهنگ:</b> <a href="{url}">{title}</a>
-  <b>▫ مدت:</b> {duration}
-  <b>▫ درخواست‌شده توسط:</b> {by}
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> {duration}
+  <b>• درخواست‌شده توسط:</b> {by}
+
 sudo_join_owner: "👑 {user} — owner of {bot} — just entered the chat."
 sudo_join_sudo: "🛡️ {user}, a sudo user of {bot}, just joined the chat."
+owner_group_join_request: "🚨 <b>ربات به گروه جدیدی اضافه شد</b>\n\n<b>نام گروه:</b> {group_name}\n<b>شناسه گروه:</b> <code>{group_id}</code>\n<b>وضعیت:</b> در انتظار تایید"
 
 supergroup_needed: |
   This chat (ID: <code>{chat_id}</code>) is not a SuperGroup yet.
@@ -965,13 +1042,45 @@ unmute_success: |
   👤 صدا را برگرداند: {user}
   {speed_line}
 voicechat_ended: |
-  <b>⚠️ ویس‌چت تمام شد</b>
+  ویس کال تموم شد.
+  برید خونه هاتون
 
-  <i>⏰ مدت: {duration}</i>
+  ⏰ مدت: {duration}
 voicechat_started: |
-  <b>♻️ ویس‌چت شروع شد!</b>
+  ویس کال شروع شد.
 
-  <i>برای پخش موسیقی از /play [نام آهنگ] استفاده کن.</i>
+voice_chat_create_confirm: |
+  🎙️ ویس کال فعال نیست!
+
+  می‌خوای فعالش کنم؟
+
+voice_chat_start_yes: "شروع کال"
+voice_chat_start_no: "نیاز نیست"
+voice_chat_started: "✅ در حال آماده‌سازی پخش..."
+voice_chat_already_active: "✅ ویس‌چت از قبل فعال است."
+voice_chat_permission_required: |
+  ⚠️ <b>دسترسی کنترل ویس‌کال لازم است</b>
+
+  برای ساختن، بستن یا گرفتن لینک ویس‌کال باید من در این گروه ادمین باشم و دسترسی مدیریت ویس‌کال را داشته باشم.
+
+  <i>لطفاً دسترسی‌های Voice Chat / Manage Calls را فعال کن و دوباره امتحان کن.</i>
+voice_chat_cancelled: "پخش لغو شد."
+voice_chat_start_failed: "❌ فعال‌سازی ویس‌چت ناموفق بود: {error}"
+voice_chat_play_resumed: "پخش شروع شد."
+voice_chat_pending_expired: "درخواست پخش منقضی شده؛ لطفاً دوباره آهنگ را بفرست."
+
+playback_finished: |
+  ☕️ <b>پخش به اتمام رسید.</b>
+
+  <b>• آهنگ:</b> <a href="{url}">{title}</a>
+  <b>• مدت:</b> <a>{duration}</a>
+  <b>• درخواستیه:</b> <a>{by}</a>
+
+playback_stopped: |
+  پخش متوقف شد!
+
+room_destroyed: "⚠️ <b>اتاق نابود شد</b>\n\nاتاق پخش ناگهان بسته شد. لطفاً دوباره ویس‌چت را راه‌اندازی کنید."
+
 help_owner: |
   👑 <b>فرمان‌های صاحب ربات</b>
 
@@ -989,8 +1098,46 @@ help_owner: |
   <b>/eval</b> - اجرای تکه‌کد Go
   <b>/maintenance</b> — مدیریت حالت تعمیر و نگهداری ربات
   <b>/restart</b> — راه‌اندازی دوباره ربات
+  <b>/ownerpanel</b> - باز کردن پنل مدیریت مالک
   <b>/sh</b> - اجرای فرمان‌های شل
   </blockquote>
+owner_panel_main: |
+  👑 <b>پنل مدیریت مالک</b>
+
+  <b>گروه‌ها:</b> {groups_total} کل | 🟢 {groups_approved} تایید شده | 🔴 {groups_pending} در انتظار
+  <b>کاربران:</b> {users_total} سرویس‌گرفته | <b>سودوها:</b> {sudo_total}
+  <b>لیست سیاه:</b> {blocked_users} کاربر | {blocked_chats} چت
+  <b>تعمیر و نگهداری:</b> {maint_status}
+  {maint_reason}
+
+  از دکمه‌های زیر برای دسترسی سریع به بخش‌های اصلی مدیریت استفاده کن.
+owner_panel_no_reason: "<i>دلیلی ثبت نشده است.</i>"
+owner_panel_back: "⬅️ بازگشت به پنل"
+owner_panel_closed: "✅ <b>پنل مالک بسته شد.</b>"
+owner_panel_refreshed: "به‌روزرسانی شد"
+owner_panel_load_fail: "❌ بارگذاری پنل مالک ناموفق بود: <code>{error}</code>"
+owner_panel_btn_groups: "👥 گروه‌ها"
+owner_panel_btn_users: "👤 کاربران"
+owner_panel_btn_sudo: "⚡ سودو"
+owner_panel_btn_stats: "📊 آمار"
+owner_panel_btn_maintenance: "🛠 تعمیرات"
+owner_panel_btn_system: "⚙️ سیستم"
+owner_panel_btn_refresh: "🔄 تازه‌سازی"
+owner_panel_section_groups: "👥 مدیریت گروه‌ها\nبرای بررسی تاییدها و وضعیت گروه‌ها از <code>{groups_cmd}</code> استفاده کن."
+owner_panel_section_users: "👤 مدیریت کاربران\nبرای کنترل کاربران از <code>{blocked_cmd}</code>، <code>/blockuser</code> و <code>/unblockuser</code> استفاده کن."
+owner_panel_section_sudo: "⚡ مدیریت سودوها\nبرای مدیریت کاربران ویژه از <code>{sudo_list_cmd}</code>، <code>{sudo_add_cmd}</code> و <code>{sudo_del_cmd}</code> استفاده کن."
+owner_panel_section_stats: "📊 پایش سیستم\nبرای آمار سیستم از <code>{stats_cmd}</code> و برای نشست‌های فعال از <code>{active_cmd}</code> استفاده کن."
+owner_panel_section_maintenance: "🛠 تعمیر و نگهداری\nبرای فعال‌سازی، غیرفعال‌سازی یا تغییر دلیل از <code>{maint_cmd}</code> استفاده کن."
+owner_panel_section_system: "⚙️ ابزارهای سیستمی\nبرای مدیریت سیستمی از <code>{restart_cmd}</code>، <code>{broadcast_cmd}</code>، <code>{logs_cmd}</code>، <code>{logger_cmd}</code>، <code>{shell_cmd}</code> و <code>{eval_cmd}</code> استفاده کن."
+owner_panel_maintenance: |
+  🛠 <b>کنترل تعمیرات</b>
+
+  <b>وضعیت:</b> {status}
+
+  از دکمه زیر برای تغییر حالت تعمیرات استفاده کن.
+  برای تنظیمات پیشرفته (دلیل و غیره) از <code>{cmd} on [دلیل]</code> یا <code>{cmd} off</code> استفاده کن.
+owner_panel_maint_btn_enable: "🟢 فعال‌سازی تعمیرات"
+owner_panel_maint_btn_disable: "🔴 غیرفعال‌سازی تعمیرات"
 help_sudo: |
   ⚡ <b>فرمان‌های سودو</b>
 
@@ -1053,3 +1200,12 @@ help_public: |
   <b>/json</b> - نمایش ساختار JSON پیام
   <b>/sudolist</b> - نمایش لیست سودوها
   </blockquote>
+
+err_voicechat_join_timeout: |
+  <b>اتصال به ویس چت انجام نشد.</b>
+
+  <i>احتمالاً سرورهای تلگرام موقتاً پاسخگو نیستند.</i>
+
+  <i>اگر مشکل برطرف نشد، گزارش را در ریپلای همین پیام ارسال کنید.</i>
+
+only_requester_or_sudo: "شمار این مدیارو درخواست نکردید."

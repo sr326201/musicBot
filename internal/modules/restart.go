@@ -27,7 +27,6 @@ import (
 	"github.com/Laky-64/gologging"
 	tg "github.com/amarnathcjd/gogram/telegram"
 
-	"main/internal/config"
 	"main/internal/core"
 	"main/internal/locales"
 	"main/internal/utils"
@@ -84,8 +83,7 @@ func restartConfirmHandler(cb *tg.CallbackQuery) error {
 	chatID := cb.ChannelID()
 	opt := &tg.CallbackOptions{Alert: true}
 
-	if cb.SenderID != config.OwnerID {
-		cb.Answer(F(chatID, "only_owner"), opt)
+	if !requireOwnerCallback(cb) {
 		return tg.ErrEndGroup
 	}
 

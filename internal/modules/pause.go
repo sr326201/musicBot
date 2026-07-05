@@ -138,5 +138,6 @@ func handlePause(m *tg.NewMessage, cplay bool) error {
 	}
 
 	m.Reply(msg)
+	schedulePlaybackPanelRefresh(chatID, r, "paused", mention)
 	return tg.ErrEndGroup
 }

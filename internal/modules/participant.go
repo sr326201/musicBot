@@ -23,6 +23,7 @@ import (
 
 	"github.com/Laky-64/gologging"
 	"github.com/amarnathcjd/gogram/telegram"
+	tg "github.com/amarnathcjd/gogram/telegram"
 
 	"main/internal/config"
 	"main/internal/core"
@@ -56,7 +57,7 @@ func getParticipantStatus(p telegram.ChannelParticipant) string {
 }
 
 func handleParticipantUpdate(p *telegram.ParticipantUpdate) error {
-	if !canBypassMaintenence(p.ActorID()) {
+	if !canBypassMaintenance(p.ActorID()) {
 		return nil
 	}
 
@@ -116,6 +117,31 @@ func handleParticipantUpdate(p *telegram.ParticipantUpdate) error {
 		(newStatus == "member" || newStatus == "administrator" || newStatus == "creator"):
 
 		handleSudoJoin(p, chatID)
+	}
+
+	if p.New != nil {
+		botID := p.Client.Me().ID
+
+		if p.UserID() == botID {
+			chat, err := p.Client.GetChat(chatID)
+			groupName := "نامعلوم"
+			if err == nil && chat.Title != "" {
+				groupName = chat.Title
+			}
+
+			text := F(config.OwnerID, "owner_group_join_request", locales.Arg{
+				"group_name": utils.EscapeHTML(groupName),
+				"group_id":   chatID,
+			})
+
+			_, err = p.Client.SendMessage(config.OwnerID, text, &tg.SendOptions{
+				ParseMode:   "HTML",
+				ReplyMarkup: core.ApproveMarkup(chatID),
+			})
+			if err != nil {
+				gologging.ErrorF("Failed to send join notification to owner: %v", err)
+			}
+		}
 	}
 
 	if state != nil && userID == state.Assistant.Self.ID {

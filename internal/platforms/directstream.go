@@ -120,7 +120,7 @@ func (d *DirectStreamPlatform) GetTracks(
 		ID:       d.generateID(query),
 		Title:    d.extractTitle(query),
 		Duration: info.Duration,
-		Artwork:  "",
+		Artwork:  d.extractArtwork(query),
 		URL:      query,
 		Source:   PlatformDirectStream,
 		Video:    video || info.IsVideo,
@@ -290,6 +290,36 @@ func (d *DirectStreamPlatform) extractTitle(urlStr string) string {
 	}
 
 	return filename
+}
+
+func (d *DirectStreamPlatform) extractArtwork(urlStr string) string {
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return ""
+	}
+
+	keys := []string{"thumb", "thumbnail", "poster", "image", "cover", "artwork"}
+	q := parsedURL.Query()
+
+	for _, key := range keys {
+		val := strings.TrimSpace(q.Get(key))
+		if val == "" {
+			continue
+		}
+
+		ref, err := url.Parse(val)
+		if err != nil {
+			continue
+		}
+
+		if ref.IsAbs() {
+			return ref.String()
+		}
+
+		return parsedURL.ResolveReference(ref).String()
+	}
+
+	return ""
 }
 
 // enrichMetadata tries to extract more metadata

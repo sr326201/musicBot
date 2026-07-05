@@ -105,6 +105,7 @@ func handleVoiceChatAction(m *telegram.NewMessage, action *telegram.MessageActio
 	isActive := action.Duration == 0
 
 	go clearRTMPState(chatID)
+
 	s, err := core.GetChatState(chatID)
 	if err != nil {
 		gologging.ErrorF("Failed to get chat state for %d: %v", chatID, err)
@@ -114,22 +115,49 @@ func handleVoiceChatAction(m *telegram.NewMessage, action *telegram.MessageActio
 	s.SetVoiceChatActive(isActive)
 
 	msgKey := utils.IfElse(isActive, "voicechat_started", "voicechat_ended")
-	m.Respond(F(chatID, msgKey, locales.Arg{"duration": utils.FormatDuration(int(action.Duration))}))
+	msg := F(chatID, msgKey, locales.Arg{
+		"duration": utils.FormatDuration(int(action.Duration)),
+	})
+
+	deleteVoiceChatServiceMessage(m)
+
+	if _, err := m.Respond(msg); err != nil {
+		gologging.ErrorF("Failed to send voice chat message in %d: %v", chatID, err)
+	}
+
 	gologging.DebugF("Voice chat %s in %d", msgKey, chatID)
 
 	if !isActive {
 		room, ok := core.GetRoom(chatID, nil, false)
 		go func() {
 			time.Sleep(500 * time.Millisecond)
-			if ok {
+
+			if ok && room != nil {
+				closePlaybackPanel(room, F(chatID, "playback_stopped"))
 				scheduleOldPlayingMessage(room)
 			}
+
 			core.DeleteRoom(chatID)
 			gologging.DebugF("Room destroyed for ended voice chat in %d", chatID)
 		}()
 	}
 
 	return telegram.ErrEndGroup
+}
+
+func deleteVoiceChatServiceMessage(m *telegram.NewMessage) {
+	if m == nil || m.ID == 0 || m.Peer == nil {
+		return
+	}
+
+	if _, err := m.Delete(); err != nil {
+		gologging.DebugF(
+			"Failed to delete voice chat service message chat=%d msg=%d: %v",
+			m.ChannelID(),
+			m.ID,
+			err,
+		)
+	}
 }
 
 func isValidChatType(m *telegram.NewMessage) bool {

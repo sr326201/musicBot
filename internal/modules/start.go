@@ -35,11 +35,27 @@ func init() {
 func startHandler(m *tg.NewMessage) error {
 	if m.ChatType() != tg.EntityUser {
 		database.AddServedChat(m.ChannelID())
-		m.Reply(
-			F(m.ChannelID(), "start_group"),
-		)
+		// m.Reply(
+		// 	F(m.ChannelID(), "start_group"),
+		// )
 		return tg.ErrEndGroup
 	}
+
+	userID := m.SenderID()
+	var captionKey string
+
+	if config.OwnerID != 0 && userID == config.OwnerID {
+		captionKey = "start_private_owner"
+	} else if isSudo, _ := database.IsSudo(userID); isSudo {
+		captionKey = "start_private_sudo"
+	} else {
+		captionKey = "start_private"
+	}
+
+	caption := F(m.ChannelID(), captionKey, locales.Arg{
+		"user": utils.MentionHTML(m.Sender),
+		"bot":  utils.MentionHTML(m.Client.Me()),
+	})
 
 	arg := m.Args()
 	database.AddServedUser(m.ChannelID())
@@ -58,7 +74,7 @@ func startHandler(m *tg.NewMessage) error {
 		helpHandler(m)
 
 	default:
-		caption := F(m.ChannelID(), "start_private", locales.Arg{
+		caption = F(m.ChannelID(), captionKey, locales.Arg{ // <-- درست (مقداردهی می‌کند)
 			"user": utils.MentionHTML(m.Sender),
 			"bot":  utils.MentionHTML(m.Client.Me()),
 		})

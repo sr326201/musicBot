@@ -61,6 +61,8 @@ func showLangMenu(m interface{}, isCallback bool) error {
 
 	if isCallback {
 		kb.AddRow(telegram.Button.Data(F(chatID, "BACK_BTN"), "set:main"))
+	} else {
+		kb.AddRow(telegram.Button.Data(F(chatID, "CLOSE_BTN"), "close"))
 	}
 
 	text := F(chatID, "lang_select")
@@ -85,13 +87,14 @@ func langCallbackHandler(cb *telegram.CallbackQuery) error {
 	lang := parts[1]
 
 	chatID := cb.ChannelID()
-	if lang == "select" {
-		return showLangMenu(cb, true)
-	}
 
 	if isAdmin, _ := utils.IsChatAdmin(cb.Client, chatID, cb.SenderID); !isAdmin {
 		cb.Answer(F(chatID, "only_admin_cb"), opt)
 		return telegram.ErrEndGroup
+	}
+
+	if lang == "select" {
+		return showLangMenu(cb, true)
 	}
 
 	currentLang, _ := database.Language(chatID)
