@@ -16,6 +16,16 @@ downloads/
 ntgcalls/*.h
 ntgcalls.zip
 
+whisper.cpp/
+libwhisper.a
+libggml.a
+libggml-cpu.a
+libggml-base.a
+internal/voiceassistant/whisper/libwhisper.a
+internal/voiceassistant/whisper/libggml.a
+internal/voiceassistant/whisper/libggml-cpu.a
+internal/voiceassistant/whisper/libggml-base.a
+
 tmp/
 x
 index.html

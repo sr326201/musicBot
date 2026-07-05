@@ -23,12 +23,17 @@ INSTALL_PIP=false
 INSTALL_FFMPEG=false
 INSTALL_YTDLP=false
 INSTALL_NTGCALLS=false
+INSTALL_WHISPER=false
 SKIP_SUMMARY=false
 QUIET_MODE=false
 
 NTGCALLS_VERSION="v2.1.0"
 GO_REQUIRED="1.25.7"
 GO_TARGET="1.25.7"
+WHISPER_VERSION="${WHISPER_VERSION:-v1.7.6}"
+WHISPER_MODEL_DEFAULT="small.en"
+WHISPER_SRC_DIR="whisper.cpp"
+WHISPER_LIB_DIR="internal/voiceassistant/whisper"
 
 OS_TYPE=""
 ARCH_TYPE=""
@@ -86,6 +91,8 @@ ${CYAN}${BOLD}Options:${RESET}
   -f, --ffmpeg            Install FFmpeg only
   -y, --yt-dlp            Install yt-dlp only
   -n, --ntgcalls          Install ntgcalls only
+  -w, --whisper           Install whisper.cpp only
+  --whisper-model MODEL   Download whisper model (default: config/env or $WHISPER_MODEL_DEFAULT)
   -q, --quiet             Quiet mode (minimal output)
   --skip-summary          Skip final summary
 
@@ -93,9 +100,16 @@ ${CYAN}${BOLD}Examples:${RESET}
   $0                      # Install everything
   $0 --deno               # Install only Deno
   $0 --ntgcalls           # Install only ntgcalls (useful for Docker)
+  $0 --whisper            # Install whisper.cpp and the configured model
   $0 --go --ffmpeg        # Install only Go and FFmpeg
+  $0 --whisper-model large-v3-turbo
   $0 --python --pip       # Install only Python and pip
   $0 --all --quiet        # Install everything in quiet mode
+
+${CYAN}${BOLD}Whisper env:${RESET}
+  WHISPER_VERSION          whisper.cpp git tag/branch/ref (default: $WHISPER_VERSION)
+  WHISPER_MODEL            Model name, e.g. small.en or large-v3-turbo
+  WHISPER_MODEL_PATH       Runtime model path; model name is inferred from it when set
 "
     exit 0
 }
@@ -114,6 +128,15 @@ parse_arguments() {
             -f|--ffmpeg)          INSTALL_FFMPEG=true;   any_component=true ;;
             -y|--yt-dlp|--ytdlp) INSTALL_YTDLP=true;   any_component=true ;;
             -n|--ntgcalls)        INSTALL_NTGCALLS=true; any_component=true ;;
+            -w|--whisper)         INSTALL_WHISPER=true;  any_component=true ;;
+            --whisper-model)
+                shift
+                [[ $# -gt 0 ]] || print_error "--whisper-model requires a value" "pass a model name such as large-v3-turbo"
+                INSTALL_WHISPER=true
+                any_component=true
+                WHISPER_MODEL="$1"
+                export WHISPER_MODEL
+                ;;
             -q|--quiet)           QUIET_MODE=true ;;
             --skip-summary)       SKIP_SUMMARY=true ;;
             *)
@@ -141,6 +164,7 @@ should_install() {
         ffmpeg)   [[ "$INSTALL_FFMPEG"   == true ]] && return 0 ;;
         ytdlp)    [[ "$INSTALL_YTDLP"   == true ]] && return 0 ;;
         ntgcalls) [[ "$INSTALL_NTGCALLS" == true ]] && return 0 ;;
+        whisper)  [[ "$INSTALL_WHISPER"  == true ]] && return 0 ;;
     esac
 
     return 1
@@ -343,6 +367,162 @@ version_ge() {
     local lowest
     lowest=$(printf '%s\n%s' "$1" "$2" | sort -V | head -n1)
     [[ "$lowest" == "$2" ]]
+}
+
+ensure_whisper_build_deps() {
+    should_install whisper || return 0
+
+    print_step "Checking whisper.cpp build dependencies..."
+
+    local packages=()
+    case "$OS_TYPE" in
+        linux)
+            if command -v apt >/dev/null 2>&1; then
+                packages=(git cmake build-essential pkg-config)
+            elif command -v dnf >/dev/null 2>&1; then
+                packages=(git cmake gcc gcc-c++ make pkgconf-pkg-config)
+            elif command -v yum >/dev/null 2>&1; then
+                packages=(git cmake gcc gcc-c++ make pkgconfig)
+            elif command -v pacman >/dev/null 2>&1; then
+                packages=(git cmake base-devel pkgconf)
+            fi
+            ;;
+        macos)
+            packages=(git cmake)
+            ;;
+        windows)
+            print_warning "Automatic whisper.cpp installation is not supported on Windows in this script"
+            WARNINGS=$((WARNINGS + 1))
+            return 1
+            ;;
+    esac
+
+    local pkg
+    for pkg in "${packages[@]}"; do
+        case "$pkg" in
+            build-essential|base-devel) install_package "$pkg" "$pkg" || return 1 ;;
+            pkg-config|pkgconf-pkg-config|pkgconfig|pkgconf) install_package "$pkg" "$pkg" || return 1 ;;
+            *) command -v "$pkg" >/dev/null 2>&1 || install_package "$pkg" "$pkg" || return 1 ;;
+        esac
+    done
+
+    command -v git >/dev/null 2>&1 || { print_soft_error "git is required for whisper.cpp"; return 1; }
+    command -v cmake >/dev/null 2>&1 || { print_soft_error "cmake is required for whisper.cpp"; return 1; }
+
+    if ! command -v make >/dev/null 2>&1 && ! command -v ninja >/dev/null 2>&1; then
+        print_soft_error "A C/C++ build toolchain is required for whisper.cpp"
+        return 1
+    fi
+
+    print_success "whisper.cpp build dependencies ready"
+}
+
+infer_whisper_model_name() {
+    local model_name="${WHISPER_MODEL:-}"
+
+    if [[ -z "$model_name" && -n "${WHISPER_MODEL_PATH:-}" ]]; then
+        model_name=$(basename "$WHISPER_MODEL_PATH")
+        model_name=${model_name#ggml-}
+        model_name=${model_name%.bin}
+    fi
+
+    if [[ -z "$model_name" ]]; then
+        model_name=$(grep -E 'filepath\.Join\("whisper\.cpp", "models", "ggml-[^"]+\.bin"\)' internal/voiceassistant/config.go \
+            | sed -E 's/.*ggml-([^\"]+)\.bin.*/\1/' | head -n1)
+    fi
+
+    [[ -n "$model_name" ]] || model_name="$WHISPER_MODEL_DEFAULT"
+    printf '%s\n' "$model_name"
+}
+
+ensure_whisper_source() {
+    local repo_dir="$WHISPER_SRC_DIR"
+
+    if [[ -d "$repo_dir/.git" ]]; then
+        print_info "whisper.cpp source already exists"
+
+        local current_ref=""
+        current_ref=$(git -C "$repo_dir" describe --tags --exact-match 2>/dev/null || true)
+        if [[ "$current_ref" != "$WHISPER_VERSION" ]]; then
+            if [[ -n "$(git -C "$repo_dir" status --porcelain 2>/dev/null)" ]]; then
+                print_warning "whisper.cpp checkout has local changes; leaving current revision in place"
+            else
+                print_info "Switching whisper.cpp to $WHISPER_VERSION"
+                run_cmd_arr "Fetching whisper.cpp ref $WHISPER_VERSION" git -C "$repo_dir" fetch --depth 1 origin "$WHISPER_VERSION" || return 1
+                run_cmd_arr "Checking out whisper.cpp ref $WHISPER_VERSION" git -C "$repo_dir" checkout FETCH_HEAD || return 1
+            fi
+        fi
+        return 0
+    fi
+
+    if [[ -d "$repo_dir" && ! -d "$repo_dir/.git" ]]; then
+        print_soft_error "$repo_dir exists but is not a git checkout"
+        return 1
+    fi
+
+    print_info "Cloning whisper.cpp $WHISPER_VERSION..."
+    run_cmd_arr "Cloning whisper.cpp" git clone --depth 1 --branch "$WHISPER_VERSION" https://github.com/ggml-org/whisper.cpp.git "$repo_dir" || return 1
+}
+
+copy_whisper_artifacts() {
+    local repo_root build_root src_lib_dir ggml_lib_dir dest_dir
+    repo_root=$(pwd)
+    build_root="$repo_root/$WHISPER_SRC_DIR/build"
+    src_lib_dir="$build_root/src"
+    ggml_lib_dir="$build_root/ggml/src"
+    dest_dir="$repo_root/$WHISPER_LIB_DIR"
+
+    mkdir -p "$dest_dir"
+
+    local libs=(libwhisper.a libggml.a libggml-cpu.a libggml-base.a)
+    local lib src_path
+    for lib in "${libs[@]}"; do
+        case "$lib" in
+            libwhisper.a) src_path="$src_lib_dir/$lib" ;;
+            *) src_path="$ggml_lib_dir/$lib" ;;
+        esac
+
+        [[ -f "$src_path" ]] || { print_soft_error "Missing whisper artifact: $src_path"; return 1; }
+        cp "$src_path" "$dest_dir/$lib" || return 1
+
+        if [[ "$OS_TYPE" == "macos" ]]; then
+            cp "$src_path" "$repo_root/$lib" || return 1
+        fi
+    done
+
+    print_success "whisper.cpp artifacts copied to $WHISPER_LIB_DIR"
+}
+
+ensure_whisper_model() {
+    local model_name models_dir model_file download_script runtime_model_path runtime_model_dir
+    model_name=$(infer_whisper_model_name)
+    models_dir="$WHISPER_SRC_DIR/models"
+    model_file="$models_dir/ggml-$model_name.bin"
+    download_script="$models_dir/download-ggml-model.sh"
+    runtime_model_path="${WHISPER_MODEL_PATH:-$model_file}"
+
+    if [[ -f "$model_file" ]]; then
+        print_success "Whisper model already present: ggml-$model_name.bin"
+    else
+        [[ -x "$download_script" ]] || chmod +x "$download_script"
+        print_info "Downloading whisper model: $model_name"
+        run_cmd_arr "Downloading whisper model $model_name" "$download_script" "$model_name" "$models_dir" || return 1
+        [[ -f "$model_file" ]] || { print_soft_error "Whisper model download did not produce $model_file"; return 1; }
+        print_success "Whisper model ready: ggml-$model_name.bin"
+    fi
+
+    if [[ "$runtime_model_path" != "$model_file" ]]; then
+        runtime_model_dir=$(dirname "$runtime_model_path")
+        mkdir -p "$runtime_model_dir" || return 1
+        if [[ -f "$runtime_model_path" ]]; then
+            print_success "Whisper runtime model already present: $runtime_model_path"
+        else
+            cp "$model_file" "$runtime_model_path" || return 1
+            print_success "Whisper runtime model copied to $runtime_model_path"
+        fi
+    fi
+
+    return 0
 }
 
 check_install_python() {
@@ -747,11 +927,20 @@ print_summary() {
     _check_deno()   { command -v deno   >/dev/null 2>&1; }
     _check_ffmpeg() { command -v ffmpeg >/dev/null 2>&1; }
     _check_ytdlp()  { command -v yt-dlp >/dev/null 2>&1; }
+    _check_whisper() {
+        [[ -d "$WHISPER_SRC_DIR/.git" ]] &&
+        [[ -f "$WHISPER_LIB_DIR/libwhisper.a" ]] &&
+        [[ -f "$WHISPER_LIB_DIR/libggml.a" ]] &&
+        [[ -f "$WHISPER_LIB_DIR/libggml-cpu.a" ]] &&
+        [[ -f "$WHISPER_LIB_DIR/libggml-base.a" ]] &&
+        [[ -f "$WHISPER_SRC_DIR/models/ggml-$(infer_whisper_model_name).bin" ]]
+    }
 
     _ver_go()     { go version     2>/dev/null | head -n1 | awk '{print $3}' | sed 's/go//'; }
     _ver_deno()   { deno --version 2>/dev/null | head -n1 | awk '{print $2}'; }
     _ver_ffmpeg() { ffmpeg -version 2>/dev/null | head -n1 | awk '{print $3}'; }
     _ver_ytdlp()  { yt-dlp --version 2>/dev/null | head -n1; }
+    _ver_whisper() { printf '%s / %s\n' "$WHISPER_VERSION" "$(infer_whisper_model_name)"; }
 
     _print_row() {
         local label="$1" key="$2" check_fn="$3" ver_fn="$4"
@@ -771,6 +960,7 @@ print_summary() {
     _print_row "Deno"   "deno"   _check_deno   _ver_deno
     _print_row "FFmpeg" "ffmpeg" _check_ffmpeg _ver_ffmpeg
     _print_row "yt-dlp" "ytdlp"  _check_ytdlp  _ver_ytdlp
+    _print_row "whisper" "whisper" _check_whisper _ver_whisper
 
     comp="Python"
     if should_install python; then
@@ -802,36 +992,51 @@ print_summary() {
     echo -e "\n${CYAN}Detailed log: $INSTALL_LOG${RESET}"
 }
 
-# New variables
-INSTALL_WHISPER=false
-WHISPER_VERSION="v1.7.6"
-
 install_whisper() {
     should_install whisper || return 0
-    
-    print_step "Building whisper.cpp..."
-    
-    if [[ -d "whisper.cpp" ]]; then
-        print_info "whisper.cpp source already exists"
+
+    print_step "Installing whisper.cpp..."
+
+    ensure_whisper_build_deps || return 1
+    ensure_whisper_source || return 1
+
+    local build_dir="$WHISPER_SRC_DIR/build"
+    local lib_dir="$WHISPER_LIB_DIR"
+    local whisper_lib="$build_dir/src/libwhisper.a"
+    local ggml_lib="$build_dir/ggml/src/libggml.a"
+    local ggml_cpu_lib="$build_dir/ggml/src/libggml-cpu.a"
+    local ggml_base_lib="$build_dir/ggml/src/libggml-base.a"
+
+    if [[ -f "$whisper_lib" && -f "$ggml_lib" && -f "$ggml_cpu_lib" && -f "$ggml_base_lib" ]]; then
+        print_info "whisper.cpp build artifacts already exist, skipping rebuild"
     else
-        git clone --depth 1 --branch $WHISPER_VERSION \
-            https://github.com/ggml-org/whisper.cpp.git
+        print_info "Configuring whisper.cpp build..."
+        run_cmd_arr "Configuring whisper.cpp" cmake -S "$WHISPER_SRC_DIR" -B "$build_dir" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_EXAMPLES=OFF || return 1
+
+        local jobs=4
+        if command -v nproc >/dev/null 2>&1; then
+            jobs=$(nproc)
+        elif command -v sysctl >/dev/null 2>&1; then
+            jobs=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
+        fi
+
+        print_info "Building whisper.cpp..."
+        run_cmd_arr "Building whisper.cpp" cmake --build "$build_dir" --config Release -j "$jobs" || return 1
     fi
-    
-    cd whisper.cpp
-    cmake -B build -DCMAKE_BUILD_TYPE=Release \
-          -DWHISPER_BUILD_TESTS=OFF \
-          -DWHISPER_BUILD_EXAMPLES=OFF
-    cmake --build build --config Release -j$(nproc)
-    
-    # Copy artifacts to project root
-    cp build/src/libwhisper.a ../
-    cp build/ggml/src/libggml.a ../
-    cp build/ggml/src/libggml-cpu.a ../ 2>/dev/null || true
-    cp include/whisper.h ../whisper/include/
-    
-    cd ..
-    print_success "whisper.cpp built and installed"
+
+    copy_whisper_artifacts || return 1
+    ensure_whisper_model || return 1
+
+    if [[ -f "$lib_dir/libwhisper.a" && -f "$lib_dir/libggml-base.a" ]]; then
+        print_success "whisper.cpp installed and ready"
+        return 0
+    fi
+
+    print_soft_error "whisper.cpp installation failed"
+    return 1
 }
 
 main() {
@@ -852,6 +1057,7 @@ main() {
     check_install_ffmpeg
     check_install_ytdlp
     install_ntgcalls
+    install_whisper
 
     cleanup_temp_files
     reload_shell_if_needed
