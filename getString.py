@@ -1,9 +1,13 @@
 from pyrogram import Client
 import asyncio
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 async def stringGenerate():
-    api_id = input("Api ID: \n")
-    api_hash = input("Api Hash: \n")
+    api_id = os.getenv("API_ID")
+    api_hash = os.getenv("API_HASH")
     client = Client("memory", api_id, api_hash)
     await client.connect()
     

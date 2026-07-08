@@ -872,7 +872,7 @@ func Init(bot *telegram.Client, assistants *core.AssistantManager) {
 	bot.Use(groupApprovalMiddleware)
 
 	//-------- Anti spam ---------//
-	bot.Use(antiSpamMiddleware)
+	// bot.Use(antiSpamMiddleware)
 
 	bot.AddMessageHandler(
 		"^(?i).+$",
